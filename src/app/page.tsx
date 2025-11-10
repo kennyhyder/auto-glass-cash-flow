@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { formatCurrency } from '@/lib/utils';
 import {
   staticOverhead,
@@ -81,7 +81,26 @@ export default function Home() {
   const [taxes] = useState<Tax[]>(sampleTaxes);
   const [rebates] = useState<Rebate[]>(sampleRebates);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
+  // Handle URL parameters for deep linking to tabs
+  useEffect(() => {
+    // Read tab from URL on initial load
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, []);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    // Update URL without page reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.pushState({}, '', url);
+  };
+
   // Calculate metrics
   const overheadTotal = overhead.reduce((sum, item) => sum + item.amount, 0);
   const payrollTotal = payroll.reduce((sum, item) => sum + item.net, 0);
@@ -256,7 +275,7 @@ export default function Home() {
             {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'taxes', 'rebates', 'forecast', 'analysis', '2025-performance'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => handleTabChange(tab)}
                 className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
                   activeTab === tab
                     ? 'bg-blue-600 text-white'
