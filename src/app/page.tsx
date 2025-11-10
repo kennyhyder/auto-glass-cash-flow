@@ -2,16 +2,17 @@
 
 import { useState, useRef } from 'react';
 import { formatCurrency } from '@/lib/utils';
-import { 
-  staticOverhead, 
-  samplePayroll, 
+import {
+  staticOverhead,
+  samplePayroll,
   sampleDebts,
   sampleCOGS,
   sampleCommissions,
   sampleTaxes,
   sampleRebates,
-  businessMetrics 
+  businessMetrics
 } from '@/lib/data';
+import monthlyData2025 from '@/lib/monthly-data-2025.json';
 
 // Types
 interface Payment {
@@ -252,7 +253,7 @@ export default function Home() {
       <nav className="max-w-7xl mx-auto px-4 py-4">
         <div className="bg-white p-2 rounded-xl shadow-sm">
           <div className="flex flex-wrap gap-1">
-            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'taxes', 'rebates', 'forecast', 'analysis'].map((tab) => (
+            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'taxes', 'rebates', 'forecast', 'analysis', '2025-performance'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -262,7 +263,7 @@ export default function Home() {
                     : 'bg-transparent text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                {tab === 'cogs' ? 'COGS' : tab === 'taxes' ? 'TPT Taxes' : tab}
+                {tab === 'cogs' ? 'COGS' : tab === 'taxes' ? 'TPT Taxes' : tab === '2025-performance' ? '2025 Performance' : tab}
               </button>
             ))}
           </div>
@@ -788,6 +789,241 @@ export default function Home() {
                   );
                 })}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2025 Performance Tab */}
+        {activeTab === '2025-performance' && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-600 mb-1">Total Revenue</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(monthlyData2025
+                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                    .reduce((sum, m) => sum + m.revenue, 0))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-600 mb-1">Total Costs</div>
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(monthlyData2025
+                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                    .reduce((sum, m) => sum + m.costs, 0))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-600 mb-1">Total Margin</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(monthlyData2025
+                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                    .reduce((sum, m) => sum + m.margin, 0))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-600 mb-1">Margin %</div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {(() => {
+                    const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
+                    const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
+                    const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
+                    return ((totalMargin / totalRevenue) * 100).toFixed(2);
+                  })()}%
+                </div>
+              </div>
+            </div>
+
+            {/* Revenue Chart */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">📈 Monthly Revenue (Jan-Oct 2025)</h2>
+              <div className="space-y-3">
+                {monthlyData2025
+                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                  .map(month => {
+                    const maxRevenue = Math.max(...monthlyData2025
+                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                      .map(m => m.revenue));
+                    const percentage = (month.revenue / maxRevenue) * 100;
+
+                    return (
+                      <div key={month.month} className="flex items-center gap-4">
+                        <div className="w-24 text-sm font-medium text-gray-700">
+                          {month.monthName.split(' ')[0]}
+                        </div>
+                        <div className="flex-1">
+                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-end px-3"
+                              style={{ width: `${percentage}%` }}
+                            >
+                              <span className="text-white text-sm font-semibold">
+                                {formatCurrency(month.revenue)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="w-20 text-right text-sm text-gray-600">
+                          {month.transactionCount} txn
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Margin Chart */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">💰 Monthly Margin (Jan-Oct 2025)</h2>
+              <div className="space-y-3">
+                {monthlyData2025
+                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                  .map(month => {
+                    const maxMargin = Math.max(...monthlyData2025
+                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                      .map(m => m.margin));
+                    const percentage = (month.margin / maxMargin) * 100;
+                    const marginPercent = ((month.margin / month.revenue) * 100).toFixed(1);
+
+                    return (
+                      <div key={month.month} className="flex items-center gap-4">
+                        <div className="w-24 text-sm font-medium text-gray-700">
+                          {month.monthName.split(' ')[0]}
+                        </div>
+                        <div className="flex-1">
+                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
+                            <div
+                              className="h-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-end px-3"
+                              style={{ width: `${percentage}%` }}
+                            >
+                              <span className="text-white text-sm font-semibold">
+                                {formatCurrency(month.margin)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="w-20 text-right text-sm text-gray-600">
+                          {marginPercent}%
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Costs Chart */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">💸 Monthly Costs (Jan-Oct 2025)</h2>
+              <div className="space-y-3">
+                {monthlyData2025
+                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                  .map(month => {
+                    const maxCost = Math.max(...monthlyData2025
+                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                      .map(m => m.costs));
+                    const percentage = (month.costs / maxCost) * 100;
+
+                    return (
+                      <div key={month.month} className="flex items-center gap-4">
+                        <div className="w-24 text-sm font-medium text-gray-700">
+                          {month.monthName.split(' ')[0]}
+                        </div>
+                        <div className="flex-1">
+                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-end px-3"
+                              style={{ width: `${percentage}%` }}
+                            >
+                              <span className="text-white text-sm font-semibold">
+                                {formatCurrency(month.costs)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="w-20 text-right text-sm text-gray-600">
+                          {((month.costs / month.revenue) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Monthly Comparison Table */}
+            <div className="bg-white rounded-xl p-6 shadow-sm overflow-x-auto">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">📊 Detailed Monthly Breakdown</h2>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Month</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Revenue</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Costs</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Margin</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Margin %</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyData2025
+                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                    .map((month, index) => (
+                      <tr key={month.month} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="py-3 px-4 text-sm font-medium text-gray-900">
+                          {month.monthName.split(' ')[0]}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right text-gray-900">
+                          {formatCurrency(month.revenue)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right text-gray-900">
+                          {formatCurrency(month.costs)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right font-semibold text-green-600">
+                          {formatCurrency(month.margin)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right text-gray-900">
+                          {((month.margin / month.revenue) * 100).toFixed(2)}%
+                        </td>
+                        <td className="py-3 px-4 text-sm text-right text-gray-600">
+                          {month.transactionCount}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 font-bold">
+                    <td className="py-3 px-4 text-sm">Total</td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      {formatCurrency(monthlyData2025
+                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                        .reduce((sum, m) => sum + m.revenue, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      {formatCurrency(monthlyData2025
+                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                        .reduce((sum, m) => sum + m.costs, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right text-green-600">
+                      {formatCurrency(monthlyData2025
+                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                        .reduce((sum, m) => sum + m.margin, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      {(() => {
+                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
+                        const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
+                        const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
+                        return ((totalMargin / totalRevenue) * 100).toFixed(2);
+                      })()}%
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      {monthlyData2025
+                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                        .reduce((sum, m) => sum + m.transactionCount, 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
         )}

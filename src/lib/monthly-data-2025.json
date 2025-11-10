@@ -1,0 +1,110 @@
+[
+  {
+    "month": "2024-12",
+    "monthName": "December 2024",
+    "revenue": 1554.52,
+    "costs": 174.73,
+    "margin": 1013.06,
+    "subtotal": 1487.79,
+    "transactionCount": 1
+  },
+  {
+    "month": "2025-01",
+    "monthName": "January 2025",
+    "revenue": 244202.91999999995,
+    "costs": 55097.939999999944,
+    "margin": 131478.62000000002,
+    "subtotal": 234033.56,
+    "transactionCount": 345
+  },
+  {
+    "month": "2025-02",
+    "monthName": "February 2025",
+    "revenue": 280244.89000000013,
+    "costs": 69252.57999999997,
+    "margin": 148285.58,
+    "subtotal": 268423.16000000003,
+    "transactionCount": 352
+  },
+  {
+    "month": "2025-03",
+    "monthName": "March 2025",
+    "revenue": 273514.0000000002,
+    "costs": 68316.36,
+    "margin": 145761.6999999999,
+    "subtotal": 262545.0600000001,
+    "transactionCount": 376
+  },
+  {
+    "month": "2025-04",
+    "monthName": "April 2025",
+    "revenue": 302909.67,
+    "costs": 81387.66000000005,
+    "margin": 149611.62999999977,
+    "subtotal": 290510.29000000004,
+    "transactionCount": 442
+  },
+  {
+    "month": "2025-05",
+    "monthName": "May 2025",
+    "revenue": 298725.0199999999,
+    "costs": 81077.77000000009,
+    "margin": 153746.94999999995,
+    "subtotal": 286684.7199999999,
+    "transactionCount": 414
+  },
+  {
+    "month": "2025-06",
+    "monthName": "June 2025",
+    "revenue": 295888.74000000005,
+    "costs": 81170.85000000002,
+    "margin": 159330.05,
+    "subtotal": 284658.9000000002,
+    "transactionCount": 405
+  },
+  {
+    "month": "2025-07",
+    "monthName": "July 2025",
+    "revenue": 288795.9400000001,
+    "costs": 81985.16999999997,
+    "margin": 144080.41,
+    "subtotal": 277616.58000000013,
+    "transactionCount": 428
+  },
+  {
+    "month": "2025-08",
+    "monthName": "August 2025",
+    "revenue": 311150.71000000014,
+    "costs": 87378.64000000003,
+    "margin": 162548.58999999997,
+    "subtotal": 299328.22999999986,
+    "transactionCount": 433
+  },
+  {
+    "month": "2025-09",
+    "monthName": "September 2025",
+    "revenue": 226733.73,
+    "costs": 63546.829999999965,
+    "margin": 121616.07000000005,
+    "subtotal": 217781.90000000005,
+    "transactionCount": 298
+  },
+  {
+    "month": "2025-10",
+    "monthName": "October 2025",
+    "revenue": 238345.56000000008,
+    "costs": 67229.25,
+    "margin": 123184.51999999999,
+    "subtotal": 230213.77000000008,
+    "transactionCount": 360
+  },
+  {
+    "month": "2025-11",
+    "monthName": "November 2025",
+    "revenue": 46202.65999999999,
+    "costs": 12808.050000000001,
+    "margin": 26168.56000000001,
+    "subtotal": 44316.61000000001,
+    "transactionCount": 58
+  }
+]
