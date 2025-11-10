@@ -797,7 +797,7 @@ export default function Home() {
         {activeTab === '2025-performance' && (
           <div className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="text-sm text-gray-600 mb-1">Total Revenue</div>
                 <div className="text-2xl font-bold text-blue-600">
@@ -807,142 +807,165 @@ export default function Home() {
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total Costs</div>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-sm text-gray-600 mb-1">Total COGS</div>
+                <div className="text-2xl font-bold text-orange-600">
                   {formatCurrency(monthlyData2025
                     .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                     .reduce((sum, m) => sum + m.costs, 0))}
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total Margin</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(monthlyData2025
-                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .reduce((sum, m) => sum + m.margin, 0))}
+                <div className="text-sm text-gray-600 mb-1">Total Overhead</div>
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(businessMetrics.monthlyOverhead * 10)}
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Margin %</div>
+                <div className="text-sm text-gray-600 mb-1">Net Profit</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(monthlyData2025
+                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                    .reduce((sum, m) => sum + m.margin, 0) - (businessMetrics.monthlyOverhead * 10))}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-600 mb-1">Net Margin %</div>
                 <div className="text-2xl font-bold text-purple-600">
                   {(() => {
                     const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
                     const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
                     const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                    return ((totalMargin / totalRevenue) * 100).toFixed(2);
+                    const totalOverhead = businessMetrics.monthlyOverhead * 10;
+                    const netProfit = totalMargin - totalOverhead;
+                    return ((netProfit / totalRevenue) * 100).toFixed(2);
                   })()}%
                 </div>
               </div>
             </div>
 
-            {/* Revenue Chart */}
+            {/* Consolidated Performance Chart */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">📈 Monthly Revenue (Jan-Oct 2025)</h2>
-              <div className="space-y-3">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Monthly Performance Overview (Jan-Oct 2025)</h2>
+
+              {/* Legend */}
+              <div className="flex flex-wrap gap-4 mb-6 pb-4 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                  <span className="text-sm text-gray-700">Revenue</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-orange-500 rounded"></div>
+                  <span className="text-sm text-gray-700">COGS</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-red-500 rounded"></div>
+                  <span className="text-sm text-gray-700">Overhead</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-500 rounded"></div>
+                  <span className="text-sm text-gray-700">Net Profit</span>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div className="space-y-6">
                 {monthlyData2025
                   .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                   .map(month => {
-                    const maxRevenue = Math.max(...monthlyData2025
+                    const overhead = businessMetrics.monthlyOverhead;
+                    const netProfit = month.margin - overhead;
+                    const maxValue = Math.max(...monthlyData2025
                       .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                       .map(m => m.revenue));
-                    const percentage = (month.revenue / maxRevenue) * 100;
 
                     return (
-                      <div key={month.month} className="flex items-center gap-4">
-                        <div className="w-24 text-sm font-medium text-gray-700">
-                          {month.monthName.split(' ')[0]}
-                        </div>
-                        <div className="flex-1">
-                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-end px-3"
-                              style={{ width: `${percentage}%` }}
-                            >
-                              <span className="text-white text-sm font-semibold">
-                                {formatCurrency(month.revenue)}
-                              </span>
-                            </div>
+                      <div key={month.month} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-gray-900 w-24">
+                            {month.monthName.split(' ')[0]}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {month.transactionCount} transactions
                           </div>
                         </div>
-                        <div className="w-20 text-right text-sm text-gray-600">
-                          {month.transactionCount} txn
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
 
-            {/* Margin Chart */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">💰 Monthly Margin (Jan-Oct 2025)</h2>
-              <div className="space-y-3">
-                {monthlyData2025
-                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                  .map(month => {
-                    const maxMargin = Math.max(...monthlyData2025
-                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                      .map(m => m.margin));
-                    const percentage = (month.margin / maxMargin) * 100;
-                    const marginPercent = ((month.margin / month.revenue) * 100).toFixed(1);
-
-                    return (
-                      <div key={month.month} className="flex items-center gap-4">
-                        <div className="w-24 text-sm font-medium text-gray-700">
-                          {month.monthName.split(' ')[0]}
-                        </div>
-                        <div className="flex-1">
-                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
-                            <div
-                              className="h-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-end px-3"
-                              style={{ width: `${percentage}%` }}
-                            >
-                              <span className="text-white text-sm font-semibold">
-                                {formatCurrency(month.margin)}
-                              </span>
+                        <div className="space-y-1.5">
+                          {/* Revenue Bar */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 text-xs text-gray-600">Revenue</div>
+                            <div className="flex-1">
+                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
+                                <div
+                                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-end px-2"
+                                  style={{ width: `${(month.revenue / maxValue) * 100}%` }}
+                                >
+                                  <span className="text-white text-xs font-semibold">
+                                    {formatCurrency(month.revenue)}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="w-20 text-right text-sm text-gray-600">
-                          {marginPercent}%
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
 
-            {/* Costs Chart */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">💸 Monthly Costs (Jan-Oct 2025)</h2>
-              <div className="space-y-3">
-                {monthlyData2025
-                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                  .map(month => {
-                    const maxCost = Math.max(...monthlyData2025
-                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                      .map(m => m.costs));
-                    const percentage = (month.costs / maxCost) * 100;
-
-                    return (
-                      <div key={month.month} className="flex items-center gap-4">
-                        <div className="w-24 text-sm font-medium text-gray-700">
-                          {month.monthName.split(' ')[0]}
-                        </div>
-                        <div className="flex-1">
-                          <div className="h-10 bg-gray-100 rounded-lg overflow-hidden relative">
-                            <div
-                              className="h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-end px-3"
-                              style={{ width: `${percentage}%` }}
-                            >
-                              <span className="text-white text-sm font-semibold">
-                                {formatCurrency(month.costs)}
-                              </span>
+                          {/* COGS Bar */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 text-xs text-gray-600">COGS</div>
+                            <div className="flex-1">
+                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
+                                <div
+                                  className="h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-end px-2"
+                                  style={{ width: `${(month.costs / maxValue) * 100}%` }}
+                                >
+                                  <span className="text-white text-xs font-semibold">
+                                    {formatCurrency(month.costs)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="w-16 text-xs text-gray-500 text-right">
+                              {((month.costs / month.revenue) * 100).toFixed(1)}%
                             </div>
                           </div>
-                        </div>
-                        <div className="w-20 text-right text-sm text-gray-600">
-                          {((month.costs / month.revenue) * 100).toFixed(1)}%
+
+                          {/* Overhead Bar */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 text-xs text-gray-600">Overhead</div>
+                            <div className="flex-1">
+                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
+                                <div
+                                  className="h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-end px-2"
+                                  style={{ width: `${(overhead / maxValue) * 100}%` }}
+                                >
+                                  <span className="text-white text-xs font-semibold">
+                                    {formatCurrency(overhead)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="w-16 text-xs text-gray-500 text-right">
+                              {((overhead / month.revenue) * 100).toFixed(1)}%
+                            </div>
+                          </div>
+
+                          {/* Net Profit Bar */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 text-xs text-gray-600 font-semibold">Net Profit</div>
+                            <div className="flex-1">
+                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
+                                <div
+                                  className={`h-full bg-gradient-to-r ${netProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} flex items-center justify-end px-2`}
+                                  style={{ width: `${Math.abs(netProfit / maxValue) * 100}%` }}
+                                >
+                                  <span className="text-white text-xs font-semibold">
+                                    {formatCurrency(netProfit)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="w-16 text-xs font-semibold text-gray-700 text-right">
+                              {((netProfit / month.revenue) * 100).toFixed(1)}%
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -958,37 +981,49 @@ export default function Home() {
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Month</th>
                     <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Revenue</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Costs</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Margin</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Margin %</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">COGS</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Gross Margin</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Overhead</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Net Profit</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Net %</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Trans.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {monthlyData2025
                     .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .map((month, index) => (
-                      <tr key={month.month} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                        <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                          {month.monthName.split(' ')[0]}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-900">
-                          {formatCurrency(month.revenue)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-900">
-                          {formatCurrency(month.costs)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right font-semibold text-green-600">
-                          {formatCurrency(month.margin)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-900">
-                          {((month.margin / month.revenue) * 100).toFixed(2)}%
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right text-gray-600">
-                          {month.transactionCount}
-                        </td>
-                      </tr>
-                    ))}
+                    .map((month, index) => {
+                      const overhead = businessMetrics.monthlyOverhead;
+                      const netProfit = month.margin - overhead;
+                      return (
+                        <tr key={month.month} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="py-3 px-4 text-sm font-medium text-gray-900">
+                            {month.monthName.split(' ')[0]}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-900">
+                            {formatCurrency(month.revenue)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-900">
+                            {formatCurrency(month.costs)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-900">
+                            {formatCurrency(month.margin)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-900">
+                            {formatCurrency(overhead)}
+                          </td>
+                          <td className={`py-3 px-4 text-sm text-right font-semibold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(netProfit)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-900">
+                            {((netProfit / month.revenue) * 100).toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right text-gray-600">
+                            {month.transactionCount}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 font-bold">
@@ -1003,17 +1038,27 @@ export default function Home() {
                         .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                         .reduce((sum, m) => sum + m.costs, 0))}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-green-600">
+                    <td className="py-3 px-4 text-sm text-right">
                       {formatCurrency(monthlyData2025
                         .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                         .reduce((sum, m) => sum + m.margin, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right">
+                      {formatCurrency(businessMetrics.monthlyOverhead * 10)}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right text-green-600">
+                      {formatCurrency(monthlyData2025
+                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                        .reduce((sum, m) => sum + m.margin, 0) - (businessMetrics.monthlyOverhead * 10))}
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
                       {(() => {
                         const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
                         const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
                         const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                        return ((totalMargin / totalRevenue) * 100).toFixed(2);
+                        const totalOverhead = businessMetrics.monthlyOverhead * 10;
+                        const netProfit = totalMargin - totalOverhead;
+                        return ((netProfit / totalRevenue) * 100).toFixed(2);
                       })()}%
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
