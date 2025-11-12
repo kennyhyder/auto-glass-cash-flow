@@ -115,3 +115,18 @@ export const sampleRebates = [
   {insurance: "State Farm", claim: "SF123456", customer: "John Doe", invoice: 850, rate: 15, amount: 127.50, expectedDate: "2/15/2025", status: "Pending"},
   {insurance: "Progressive", claim: "PG789012", customer: "Jane Smith", invoice: 650, rate: 12, amount: 78, expectedDate: "2/10/2025", status: "Pending"}
 ];
+
+// Variable monthly marketing costs (actual costs + $5,000 baseline per month)
+export const monthlyMarketingCosts: { [key: string]: number } = {
+  "2025-01": 3342.28 + 5000,
+  "2025-02": 0 + 5000,
+  "2025-03": 55638.92 + 5000,
+  "2025-04": 33375.28 + 5000,
+  "2025-05": 26728.56 + 5000,
+  "2025-06": 39209.53 + 5000,
+  "2025-07": 10579.12 + 5000,
+  "2025-08": 92202.9 + 5000,
+  "2025-09": 26375.42 + 5000,
+  "2025-10": 84562.7 + 5000,
+  "2025-11": 2401.68 + 5000
+};

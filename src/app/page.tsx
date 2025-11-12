@@ -10,7 +10,8 @@ import {
   sampleCommissions,
   sampleTaxes,
   sampleRebates,
-  businessMetrics
+  businessMetrics,
+  monthlyMarketingCosts
 } from '@/lib/data';
 import monthlyData2025 from '@/lib/monthly-data-2025.json';
 
@@ -836,15 +837,27 @@ export default function Home() {
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="text-sm text-gray-600 mb-1">Total Overhead</div>
                 <div className="text-2xl font-bold text-red-600">
-                  {formatCurrency(businessMetrics.monthlyOverhead * 10)}
+                  {(() => {
+                    // Base overhead (without fixed marketing) + actual monthly marketing costs
+                    const baseOverhead = 67567.14; // businessMetrics.monthlyOverhead - 50000
+                    const totalMarketingCosts = monthlyData2025
+                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
+                      .reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                    return formatCurrency((baseOverhead * 10) + totalMarketingCosts);
+                  })()}
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="text-sm text-gray-600 mb-1">Net Profit</div>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(monthlyData2025
-                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .reduce((sum, m) => sum + m.margin, 0) - (businessMetrics.monthlyOverhead * 10))}
+                  {(() => {
+                    const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
+                    const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
+                    const baseOverhead = 67567.14;
+                    const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                    const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
+                    return formatCurrency(totalMargin - totalOverhead);
+                  })()}
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
@@ -854,7 +867,9 @@ export default function Home() {
                     const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
                     const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
                     const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                    const totalOverhead = businessMetrics.monthlyOverhead * 10;
+                    const baseOverhead = 67567.14;
+                    const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                    const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
                     const netProfit = totalMargin - totalOverhead;
                     return ((netProfit / totalRevenue) * 100).toFixed(2);
                   })()}%
@@ -891,7 +906,10 @@ export default function Home() {
                 {monthlyData2025
                   .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                   .map(month => {
-                    const overhead = businessMetrics.monthlyOverhead;
+                    // Variable overhead: base overhead + actual marketing cost for this month
+                    const baseOverhead = 67567.14;
+                    const marketingCost = monthlyMarketingCosts[month.month] || 0;
+                    const overhead = baseOverhead + marketingCost;
                     const netProfit = month.margin - overhead;
                     const maxValue = Math.max(...monthlyData2025
                       .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
@@ -1012,7 +1030,10 @@ export default function Home() {
                   {monthlyData2025
                     .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                     .map((month, index) => {
-                      const overhead = businessMetrics.monthlyOverhead;
+                      // Variable overhead: base overhead + actual marketing cost for this month
+                      const baseOverhead = 67567.14;
+                      const marketingCost = monthlyMarketingCosts[month.month] || 0;
+                      const overhead = baseOverhead + marketingCost;
                       const netProfit = month.margin - overhead;
                       return (
                         <tr key={month.month} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
@@ -1063,19 +1084,31 @@ export default function Home() {
                         .reduce((sum, m) => sum + m.margin, 0))}
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
-                      {formatCurrency(businessMetrics.monthlyOverhead * 10)}
+                      {(() => {
+                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
+                        const baseOverhead = 67567.14;
+                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                        return formatCurrency((baseOverhead * 10) + totalMarketingCosts);
+                      })()}
                     </td>
                     <td className="py-3 px-4 text-sm text-right text-green-600">
-                      {formatCurrency(monthlyData2025
-                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                        .reduce((sum, m) => sum + m.margin, 0) - (businessMetrics.monthlyOverhead * 10))}
+                      {(() => {
+                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
+                        const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
+                        const baseOverhead = 67567.14;
+                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                        const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
+                        return formatCurrency(totalMargin - totalOverhead);
+                      })()}
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
                       {(() => {
                         const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
                         const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
                         const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                        const totalOverhead = businessMetrics.monthlyOverhead * 10;
+                        const baseOverhead = 67567.14;
+                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
+                        const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
                         const netProfit = totalMargin - totalOverhead;
                         return ((netProfit / totalRevenue) * 100).toFixed(2);
                       })()}%
