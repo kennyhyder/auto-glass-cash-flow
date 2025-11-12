@@ -6,7 +6,6 @@ import {
   staticOverhead,
   samplePayroll,
   sampleDebts,
-  sampleCOGS,
   sampleCommissions,
   sampleTaxes,
   sampleRebates,
@@ -14,6 +13,7 @@ import {
   monthlyMarketingCosts
 } from '@/lib/data';
 import monthlyData2025 from '@/lib/monthly-data-2025.json';
+import cogsData2025 from '@/lib/cogs-data-2025.json';
 
 // Types
 interface Payment {
@@ -27,14 +27,10 @@ interface Payment {
 }
 
 interface COGSItem {
+  id: string;
   date: string;
-  invoice: string;
   customer: string;
-  part: string;
   cost: number;
-  supplier: string;
-  dueDate: string;
-  status: string;
 }
 
 interface Commission {
@@ -77,7 +73,7 @@ export default function Home() {
   const [overhead] = useState<Payment[]>(staticOverhead);
   const [payroll] = useState(samplePayroll);
   const [debts] = useState(sampleDebts);
-  const [cogs] = useState<COGSItem[]>(sampleCOGS);
+  const [cogs] = useState<COGSItem[]>(cogsData2025 as COGSItem[]);
   const [commissions] = useState<Commission[]>(sampleCommissions);
   const [taxes] = useState<Tax[]>(sampleTaxes);
   const [rebates] = useState<Rebate[]>(sampleRebates);
@@ -106,7 +102,7 @@ export default function Home() {
   const overheadTotal = overhead.reduce((sum, item) => sum + item.amount, 0);
   const payrollTotal = payroll.reduce((sum, item) => sum + item.net, 0);
   const debtTotal = debts.reduce((sum, item) => sum + item.current, 0);
-  const cogsTotal = cogs.filter(item => item.status === "Pending").reduce((sum, item) => sum + item.cost, 0);
+  const cogsTotal = cogs.reduce((sum, item) => sum + item.cost, 0);
   const commissionsTotal = commissions.reduce((sum, item) => sum + item.total, 0);
   const taxesTotal = taxes.reduce((sum, item) => sum + item.due, 0);
   const rebatesTotal = rebates.reduce((sum, item) => sum + item.amount, 0);
@@ -504,8 +500,12 @@ export default function Home() {
         {activeTab === 'cogs' && (
           <div className="bg-white rounded-xl shadow-sm">
             <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">📦 Cost of Goods Sold</h2>
-              <p className="text-gray-600">Pending Total: <strong>{formatCurrency(cogsTotal)}</strong></p>
+              <h2 className="text-xl font-semibold">📦 Cost of Goods Sold (2025)</h2>
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-gray-600">
+                  Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> ({cogs.length.toLocaleString()} transactions)
+                </p>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -514,33 +514,26 @@ export default function Home() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Part</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {cogs.map((item, index) => (
+                  {cogs.slice(0, 100).map((item, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm">{item.date}</td>
-                      <td className="px-6 py-4 text-sm font-medium">{item.invoice}</td>
+                      <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
                       <td className="px-6 py-4 text-sm">{item.customer}</td>
-                      <td className="px-6 py-4 text-sm">{item.part}</td>
-                      <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.cost)}</td>
-                      <td className="px-6 py-4 text-sm">{item.supplier}</td>
-                      <td className="px-6 py-4 text-sm">{item.dueDate}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          item.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.status}
-                        </span>
-                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-right">{formatCurrency(item.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td colSpan={4} className="px-6 py-4 text-sm text-gray-500 text-center">
+                      Showing first 100 of {cogs.length.toLocaleString()} transactions
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
