@@ -108,7 +108,7 @@ export default function Home() {
 
   // Calculate metrics
   const overheadTotal = overhead.reduce((sum, item) => sum + item.amount, 0);
-  const payrollTotal = payroll.reduce((sum, item) => sum + item.net, 0);
+  const payrollTotal = payroll.reduce((sum, item) => sum + item.gross, 0);
   const debtTotal = debts.reduce((sum, item) => sum + item.current, 0);
   const cogsTotal = cogs.reduce((sum, item) => sum + item.cost, 0);
   const commissionsTotal = commissions.reduce((sum, item) => sum + item.total, 0);
@@ -136,11 +136,9 @@ export default function Home() {
         .filter(item => item.day === checkDay)
         .reduce((sum, item) => sum + item.amount, 0);
       
-      // Add payroll if due
-      if (checkDay === 5 || checkDay === 20) {
-        total += payroll
-          .filter(p => p.payDate === checkDay)
-          .reduce((sum, p) => sum + p.net, 0);
+      // Add weekly payroll (paid weekly)
+      if (checkDay % 7 === 0) {
+        total += payrollTotal;
       }
     }
     return total;
@@ -167,21 +165,15 @@ export default function Home() {
           });
         });
       
-      // Add payroll if due
-      if (checkDay === 5 || checkDay === 20) {
-        const payrollTotal = payroll
-          .filter(p => p.payDate === checkDay)
-          .reduce((sum, p) => sum + p.net, 0);
-        
-        if (payrollTotal > 0) {
-          payments.push({
-            date: checkDate,
-            name: `Payroll (${checkDay}th)`,
-            amount: payrollTotal,
-            category: 'Payroll',
-            status: i === 0 ? 'Due Today' : `In ${i} days`
-          });
-        }
+      // Add weekly payroll
+      if (checkDay % 7 === 0) {
+        payments.push({
+          date: checkDate,
+          name: `Weekly Payroll`,
+          amount: payrollTotal,
+          category: 'Payroll',
+          status: i === 0 ? 'Due Today' : `In ${i} days`
+        });
       }
     }
     
@@ -277,7 +269,7 @@ export default function Home() {
       <nav className="max-w-7xl mx-auto px-4 py-4">
         <div className="bg-white p-2 rounded-xl shadow-sm">
           <div className="flex flex-wrap gap-1">
-            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'taxes', 'rebates', 'forecast', 'analysis', '2025-performance'].map((tab) => (
+            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'rebates', 'forecast', 'analysis', '2025-performance'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => handleTabChange(tab)}
@@ -287,7 +279,7 @@ export default function Home() {
                     : 'bg-transparent text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                {tab === 'cogs' ? 'COGS' : tab === 'taxes' ? 'TPT Taxes' : tab === '2025-performance' ? '2025 Performance' : tab}
+                {tab === 'cogs' ? 'COGS' : tab === '2025-performance' ? '2025 Performance' : tab}
               </button>
             ))}
           </div>
@@ -465,40 +457,36 @@ export default function Home() {
           <div className="bg-white rounded-xl shadow-sm">
             <div className="px-6 py-4 border-b">
               <h2 className="text-xl font-semibold">👥 Payroll Schedule</h2>
-              <p className="text-gray-600">Total Monthly: <strong>{formatCurrency(payrollTotal)}</strong></p>
+              <p className="text-gray-600">Total Weekly Payroll: <strong>{formatCurrency(payrollTotal)}</strong> | Total Monthly: <strong>{formatCurrency(payrollTotal * 4)}</strong></p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Pay</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Pay Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {payroll.map((item, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 text-sm font-medium">{item.employee}</td>
-                      <td className="px-6 py-4 text-sm">{item.position}</td>
-                      <td className="px-6 py-4 text-sm">{item.type}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.gross)}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.taxes)}</td>
-                      <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.net)}</td>
-                      <td className="px-6 py-4 text-sm">{item.payDate}th</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                          {item.status}
-                        </span>
-                      </td>
+                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.gross)}</td>
+                      <td className="px-6 py-4 text-sm text-center">{item.type}</td>
+                      <td className="px-6 py-4 text-sm text-center">{item.payDate}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-50">
+                  <tr>
+                    <td className="px-6 py-4 text-sm font-bold">Total ({payroll.length} employees)</td>
+                    <td className="px-6 py-4 text-sm font-bold text-right">{formatCurrency(payrollTotal)}</td>
+                    <td className="px-6 py-4"></td>
+                    <td className="px-6 py-4"></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>

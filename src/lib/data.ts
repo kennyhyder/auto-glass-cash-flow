@@ -45,12 +45,17 @@ export const staticOverhead = [
 
 // Sample payroll data
 export const samplePayroll = [
-  {employee: "John Smith", position: "Senior Tech", type: "Hourly", gross: 2800, taxes: 420, net: 2380, payDate: 5, status: "Pending"},
-  {employee: "Maria Garcia", position: "Technician", type: "Hourly", gross: 2240, taxes: 336, net: 1904, payDate: 5, status: "Pending"},
-  {employee: "Sarah Williams", position: "Office Mgr", type: "Salary", gross: 3500, taxes: 525, net: 2975, payDate: 5, status: "Pending"},
-  {employee: "David Brown", position: "Sales", type: "Commission", gross: 4500, taxes: 675, net: 3825, payDate: 5, status: "Pending"},
-  {employee: "Jennifer Lee", position: "Accounting", type: "Salary", gross: 3000, taxes: 450, net: 2550, payDate: 20, status: "Pending"},
-  {employee: "Robert Taylor", position: "Technician", type: "Hourly", gross: 2080, taxes: 312, net: 1768, payDate: 20, status: "Pending"}
+  {employee: "ALISON FARME", gross: 600, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "WILLIAM LESU", gross: 4000, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "Lacy Estrada", gross: 1500, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "TAYLOR DEAR", gross: 1000, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "FILIBERTO GU", gross: 1200, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "JACOB JIRON", gross: 600, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "RICK IT", gross: 645, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "Julio Duran", gross: 2500, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "BRYCE LeSueur", gross: 1200, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "AMADO Viera", gross: 1275, type: "SALARY", payDate: "WEEKLY"},
+  {employee: "JUAN CARRAN", gross: 1000, type: "SALARY", payDate: "WEEKLY"}
 ];
 
 // Sample debt data
