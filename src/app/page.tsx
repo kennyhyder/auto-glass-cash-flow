@@ -135,6 +135,53 @@ export default function Home() {
   // Estimate current cash (avg monthly revenue - avg monthly expenses + buffer)
   const estimatedMonthlyCashFlow = avgMonthlyRevenue - monthlyExpenses - (cogsTotal / 10); // COGS spread over months
   const estimatedCurrentCash = estimatedMonthlyCashFlow * 1.5; // ~1.5 months buffer
+
+  // Calculate best month performance for optimistic forecast
+  const bestMonth = monthlyData.reduce((best, current) =>
+    current.revenue > best.revenue ? current : best
+  , monthlyData[0]);
+  const bestWeeklyRevenue = bestMonth.revenue / 4; // Assume 4 weeks per month
+  const bestWeeklyMargin = bestMonth.margin / 4;
+  const bestWeeklyCosts = bestMonth.costs / 4;
+  const bestWeeklyTransactions = Math.ceil(bestMonth.transactionCount / 4);
+
+  // Generate 8-week forecast based on best performance
+  function generateWeeklyForecast() {
+    const forecast = [];
+    let cumulativeCash = estimatedCurrentCash;
+    const weeklyOverhead = monthlyOverhead / 4;
+    const weeklyExpenses = weeklyOverhead + payrollTotal; // payroll is already weekly
+
+    for (let week = 1; week <= 8; week++) {
+      const startingBalance = cumulativeCash;
+      const expectedRevenue = bestWeeklyRevenue;
+      const expectedCosts = bestWeeklyCosts;
+      const expectedMargin = bestWeeklyMargin;
+      const totalExpenses = weeklyExpenses + expectedCosts;
+      const netCashFlow = expectedRevenue - totalExpenses;
+      const endingBalance = startingBalance + netCashFlow;
+
+      forecast.push({
+        week,
+        startingBalance,
+        expectedRevenue,
+        expectedCosts,
+        expectedMargin,
+        overhead: weeklyOverhead,
+        payroll: payrollTotal,
+        totalExpenses,
+        netCashFlow,
+        endingBalance,
+        transactions: bestWeeklyTransactions
+      });
+
+      cumulativeCash = endingBalance;
+    }
+
+    return forecast;
+  }
+
+  const weeklyForecast = generateWeeklyForecast();
   
   // Calculate daily obligations
   const today = new Date();
@@ -201,39 +248,6 @@ export default function Home() {
     return payments.sort((a, b) => a.date - b.date);
   }
   
-  // Generate 30-day forecast data
-  function generateForecastData() {
-    const data = [];
-    let balance = estimatedCurrentCash;
-    
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-      const dayOfMonth = date.getDate();
-      
-      // Add daily revenue
-      balance += businessMetrics.avgMonthlyRevenue / 30;
-      
-      // Subtract expenses for that day
-      overhead
-        .filter(item => item.day === dayOfMonth)
-        .forEach(item => {
-          balance -= item.amount;
-        });
-      
-      // Account for payroll
-      if (dayOfMonth === 5 || dayOfMonth === 20) {
-        balance -= 25000; // Approximate payroll
-      }
-      
-      data.push({
-        day: `${date.getMonth() + 1}/${date.getDate()}`,
-        balance: Math.round(balance)
-      });
-    }
-    
-    return data;
-  }
-  
   // Handle file import
   const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -250,7 +264,6 @@ export default function Home() {
   };
 
   const upcomingPayments = getUpcomingPayments();
-  const forecastData = generateForecastData();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -994,66 +1007,139 @@ export default function Home() {
         {/* Forecast Tab */}
         {activeTab === 'forecast' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📈 Cash Flow Forecast</h2>
-              <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-gray-500 mb-4">30-Day Cash Flow Projection</p>
-                  <div className="space-y-2">
-                    {forecastData.slice(0, 5).map((item, index) => (
-                      <div key={index} className="text-sm">
-                        <span className="font-medium">{item.day}:</span> {formatCurrency(item.balance)}
-                      </div>
-                    ))}
-                    <p className="text-xs text-gray-400 mt-2">... and {forecastData.length - 5} more days</p>
-                  </div>
-                </div>
+            {/* Forecast Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">Best Month Performance</div>
+                <div className="text-2xl font-bold text-blue-600">{formatCurrency(bestMonth.revenue)}</div>
+                <div className="text-sm text-gray-600 mt-2">{bestMonth.monthName}</div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">Weekly Revenue (Best)</div>
+                <div className="text-2xl font-bold text-green-600">{formatCurrency(bestWeeklyRevenue)}</div>
+                <div className="text-sm text-gray-600 mt-2">~{bestWeeklyTransactions} transactions/week</div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">8-Week Projected Revenue</div>
+                <div className="text-2xl font-bold text-purple-600">{formatCurrency(bestWeeklyRevenue * 8)}</div>
+                <div className="text-sm text-gray-600 mt-2">Optimistic scenario</div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">Projected Cash Position</div>
+                <div className="text-2xl font-bold text-gray-900">{formatCurrency(weeklyForecast[7].endingBalance)}</div>
+                <div className="text-sm text-gray-600 mt-2">After 8 weeks</div>
               </div>
             </div>
-            
+
+            {/* Weekly Forecast Table */}
             <div className="bg-white rounded-xl shadow-sm">
               <div className="px-6 py-4 border-b">
-                <h2 className="text-xl font-semibold">Daily Cash Position Forecast</h2>
+                <h2 className="text-xl font-semibold">📈 8-Week Cash Flow Forecast</h2>
+                <p className="text-sm text-gray-600 mt-1">Based on best month performance ({bestMonth.monthName}) - Optimistic projection</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Starting Balance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expected Income</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Expenses</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ending Balance</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Starting Balance</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">COGS</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overhead</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Payroll</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Cash Flow</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ending Balance</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {forecastData.slice(0, 7).map((item, index) => {
-                      const dailyIncome = businessMetrics.avgMonthlyRevenue / 30;
-                      const startBalance = index === 0 ? estimatedCurrentCash : forecastData[index - 1].balance;
-                      const expenses = startBalance + dailyIncome - item.balance;
-                      
+                    {weeklyForecast.map((week) => {
+                      const today = new Date();
+                      const weekStartDate = new Date(today.getTime() + (week.week - 1) * 7 * 24 * 60 * 60 * 1000);
+                      const weekEndDate = new Date(weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+                      const dateRange = `${weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
                       return (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm">{item.day}</td>
-                          <td className="px-6 py-4 text-sm">{formatCurrency(startBalance)}</td>
-                          <td className="px-6 py-4 text-sm text-green-600">{formatCurrency(dailyIncome)}</td>
-                          <td className="px-6 py-4 text-sm text-red-600">{formatCurrency(expenses)}</td>
-                          <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.balance)}</td>
-                          <td className="px-6 py-4">
+                        <tr key={week.week} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm font-medium">
+                            <div>Week {week.week}</div>
+                            <div className="text-xs text-gray-500">{dateRange}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right">{formatCurrency(week.startingBalance)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-blue-600 font-medium">{formatCurrency(week.expectedRevenue)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-red-600">-{formatCurrency(week.expectedCosts)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-green-600 font-medium">{formatCurrency(week.expectedMargin)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-orange-600">-{formatCurrency(week.overhead)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-purple-600">-{formatCurrency(week.payroll)}</td>
+                          <td className="px-6 py-4 text-sm text-right font-bold">
+                            <span className={week.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {week.netCashFlow >= 0 ? '+' : ''}{formatCurrency(week.netCashFlow)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right font-bold">{formatCurrency(week.endingBalance)}</td>
+                          <td className="px-6 py-4 text-center">
                             <span className={`px-2 py-1 text-xs rounded-full ${
-                              item.balance < 10000 ? 'bg-red-100 text-red-800' : 
-                              item.balance < 25000 ? 'bg-yellow-100 text-yellow-800' : 
+                              week.endingBalance < 50000 ? 'bg-yellow-100 text-yellow-800' :
+                              week.endingBalance < 100000 ? 'bg-blue-100 text-blue-800' :
                               'bg-green-100 text-green-800'
                             }`}>
-                              {item.balance < 10000 ? 'Critical' : item.balance < 25000 ? 'Low' : 'Healthy'}
+                              {week.endingBalance < 50000 ? 'Caution' : week.endingBalance < 100000 ? 'Good' : 'Excellent'}
                             </span>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
+                  <tfoot className="bg-gray-50 font-bold">
+                    <tr>
+                      <td className="px-6 py-4 text-sm">8-Week Totals</td>
+                      <td className="px-6 py-4 text-sm text-right">-</td>
+                      <td className="px-6 py-4 text-sm text-right text-blue-600">
+                        {formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedRevenue, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-red-600">
+                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedCosts, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-green-600">
+                        {formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedMargin, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-orange-600">
+                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.overhead, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-purple-600">
+                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.payroll, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right text-green-600">
+                        +{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.netCashFlow, 0))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-right">-</td>
+                      <td className="px-6 py-4 text-center">-</td>
+                    </tr>
+                  </tfoot>
                 </table>
+              </div>
+            </div>
+
+            {/* Forecast Assumptions */}
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-semibold text-blue-800">Forecast Assumptions</h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Based on best month: {bestMonth.monthName} ({formatCurrency(bestMonth.revenue)} revenue, {bestMonth.transactionCount} transactions)</li>
+                      <li>Weekly revenue: {formatCurrency(bestWeeklyRevenue)} (~{bestWeeklyTransactions} transactions)</li>
+                      <li>Weekly expenses: {formatCurrency(payrollTotal)} payroll + {formatCurrency(monthlyOverhead / 4)} overhead</li>
+                      <li>COGS: {((bestWeeklyCosts / bestWeeklyRevenue) * 100).toFixed(1)}% of revenue</li>
+                      <li>Gross margin: {((bestWeeklyMargin / bestWeeklyRevenue) * 100).toFixed(1)}%</li>
+                      <li>This is an optimistic projection assuming consistent best-case performance</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
