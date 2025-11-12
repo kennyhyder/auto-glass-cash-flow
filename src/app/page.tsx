@@ -503,7 +503,10 @@ export default function Home() {
               <h2 className="text-xl font-semibold">📦 Cost of Goods Sold (2025)</h2>
               <div className="flex justify-between items-center mt-2">
                 <p className="text-gray-600">
-                  Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> ({cogs.length.toLocaleString()} transactions)
+                  Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> |
+                  Total TPT Taxes (7.9%): <strong>{formatCurrency(cogsTotal * 0.079)}</strong> |
+                  Grand Total: <strong>{formatCurrency(cogsTotal * 1.079)}</strong> |
+                  ({cogs.length.toLocaleString()} transactions)
                 </p>
               </div>
             </div>
@@ -515,21 +518,29 @@ export default function Home() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">TPT Taxes (7.9%)</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {cogs.slice(0, 100).map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm">{item.date}</td>
-                      <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
-                      <td className="px-6 py-4 text-sm">{item.customer}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-right">{formatCurrency(item.cost)}</td>
-                    </tr>
-                  ))}
+                  {cogs.slice(0, 100).map((item, index) => {
+                    const tptTax = item.cost * 0.079;
+                    const total = item.cost + tptTax;
+                    return (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm">{item.date}</td>
+                        <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
+                        <td className="px-6 py-4 text-sm">{item.customer}</td>
+                        <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.cost)}</td>
+                        <td className="px-6 py-4 text-sm text-right text-orange-600">{formatCurrency(tptTax)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-right text-blue-600">{formatCurrency(total)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                 <tfoot className="bg-gray-50">
                   <tr>
-                    <td colSpan={4} className="px-6 py-4 text-sm text-gray-500 text-center">
+                    <td colSpan={6} className="px-6 py-4 text-sm text-gray-500 text-center">
                       Showing first 100 of {cogs.length.toLocaleString()} transactions
                     </td>
                   </tr>
