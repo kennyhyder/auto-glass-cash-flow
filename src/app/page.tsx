@@ -63,7 +63,6 @@ interface Rebate {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [currentCash] = useState(45320);
   const [overhead] = useState<Payment[]>(staticOverhead);
   const [payroll] = useState(samplePayroll);
   const [debts] = useState(sampleDebts);
@@ -108,7 +107,7 @@ export default function Home() {
     window.history.pushState({}, '', url);
   };
 
-  // Calculate metrics
+  // Calculate metrics from real data
   const overheadTotal = overhead.reduce((sum, item) => sum + item.amount, 0);
   const payrollTotal = payroll.reduce((sum, item) => sum + item.gross, 0);
   const debtTotal = debts.reduce((sum, item) => sum + item.current, 0);
@@ -116,6 +115,26 @@ export default function Home() {
   const commissionsTotal = commissions.reduce((sum, item) => sum + item.commission, 0);
   const taxesTotal = taxes.reduce((sum, item) => sum + item.due, 0);
   const rebatesTotal = rebates.reduce((sum, item) => sum + item.rebateAmount, 0);
+
+  // Calculate YTD metrics from monthly data (2025 only, excluding Dec 2024)
+  const monthlyData = (monthlyData2025 as any[]).filter(m => m.month.startsWith('2025'));
+  const ytdRevenue = monthlyData.reduce((sum, m) => sum + m.revenue, 0);
+  const ytdCosts = monthlyData.reduce((sum, m) => sum + m.costs, 0);
+  const ytdMargin = monthlyData.reduce((sum, m) => sum + m.margin, 0);
+  const ytdTransactions = monthlyData.reduce((sum, m) => sum + m.transactionCount, 0);
+  const avgMonthlyRevenue = ytdRevenue / monthlyData.length;
+  const avgMonthlyMargin = ytdMargin / monthlyData.length;
+  const avgTransactionValue = ytdRevenue / ytdTransactions;
+  const marginPercent = (ytdMargin / ytdRevenue) * 100;
+
+  // Calculate total monthly expenses
+  const monthlyOverhead = overheadTotal;
+  const monthlyPayroll = payrollTotal * 4; // Weekly * 4
+  const monthlyExpenses = monthlyOverhead + monthlyPayroll;
+
+  // Estimate current cash (avg monthly revenue - avg monthly expenses + buffer)
+  const estimatedMonthlyCashFlow = avgMonthlyRevenue - monthlyExpenses - (cogsTotal / 10); // COGS spread over months
+  const estimatedCurrentCash = estimatedMonthlyCashFlow * 1.5; // ~1.5 months buffer
   
   // Calculate daily obligations
   const today = new Date();
@@ -185,7 +204,7 @@ export default function Home() {
   // Generate 30-day forecast data
   function generateForecastData() {
     const data = [];
-    let balance = currentCash;
+    let balance = estimatedCurrentCash;
     
     for (let i = 0; i < 30; i++) {
       const date = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
@@ -293,88 +312,153 @@ export default function Home() {
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Metrics Grid */}
+            {/* Top Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Current Cash</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(currentCash)}</div>
-                <div className="text-sm text-gray-600 mt-2">Updated: Today 9:00 AM</div>
+                <div className="text-sm text-gray-500 uppercase mb-2">YTD Revenue</div>
+                <div className="text-3xl font-bold text-blue-600">{formatCurrency(ytdRevenue)}</div>
+                <div className="text-sm text-gray-600 mt-2">{ytdTransactions.toLocaleString()} transactions</div>
               </div>
-              
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">YTD Gross Margin</div>
+                <div className="text-3xl font-bold text-green-600">{formatCurrency(ytdMargin)}</div>
+                <div className="text-sm text-gray-600 mt-2">{marginPercent.toFixed(1)}% margin rate</div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">Avg Monthly Revenue</div>
+                <div className="text-3xl font-bold text-gray-900">{formatCurrency(avgMonthlyRevenue)}</div>
+                <div className="text-sm text-gray-600 mt-2">{(ytdTransactions / monthlyData.length).toFixed(0)} transactions/mo</div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="text-sm text-gray-500 uppercase mb-2">Estimated Cash Position</div>
+                <div className="text-3xl font-bold text-gray-900">{formatCurrency(estimatedCurrentCash)}</div>
+                <div className="text-sm text-gray-600 mt-2">Based on cash flow</div>
+              </div>
+            </div>
+
+            {/* Payment Obligations Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="text-sm text-gray-500 uppercase mb-2">Today's Obligations</div>
-                <div className="text-3xl font-bold text-red-600">{formatCurrency(todaysDue)}</div>
+                <div className="text-2xl font-bold text-red-600">{formatCurrency(todaysDue)}</div>
                 <div className="text-sm text-red-600 mt-2">{todaysDue > 0 ? 'Payments due' : 'No payments today'}</div>
               </div>
-              
+
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="text-sm text-gray-500 uppercase mb-2">Week Total Due</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(weeklyDue)}</div>
+                <div className="text-2xl font-bold text-gray-900">{formatCurrency(weeklyDue)}</div>
                 <div className="text-sm text-gray-600 mt-2">{upcomingPayments.length} payments</div>
               </div>
-              
+
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Month Total Due</div>
-                <div className="text-3xl font-bold text-gray-900">
-                  {formatCurrency(overheadTotal + payrollTotal + cogsTotal + commissionsTotal + taxesTotal)}
-                </div>
-                <div className="text-sm text-gray-600 mt-2">All categories</div>
+                <div className="text-sm text-gray-500 uppercase mb-2">Monthly Expenses</div>
+                <div className="text-2xl font-bold text-gray-900">{formatCurrency(monthlyExpenses)}</div>
+                <div className="text-sm text-gray-600 mt-2">Overhead + Payroll</div>
               </div>
             </div>
 
-            {/* Cash Flow Summary */}
+            {/* Business Performance Summary */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Cash Flow Summary</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Overhead</div>
-                  <div className="text-lg font-bold">{formatCurrency(overheadTotal)}</div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Business Performance (YTD 2025)</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Total Revenue</div>
+                  <div className="text-xl font-bold text-blue-600">{formatCurrency(ytdRevenue)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{ytdTransactions.toLocaleString()} trans.</div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Payroll</div>
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Total COGS</div>
+                  <div className="text-xl font-bold text-red-600">{formatCurrency(ytdCosts)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{cogs.length.toLocaleString()} items</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Gross Margin</div>
+                  <div className="text-xl font-bold text-green-600">{formatCurrency(ytdMargin)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{marginPercent.toFixed(1)}% rate</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Avg Ticket</div>
+                  <div className="text-xl font-bold text-purple-600">{formatCurrency(avgTransactionValue)}</div>
+                  <div className="text-xs text-gray-500 mt-1">per transaction</div>
+                </div>
+              </div>
+
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">💰 Expenses Breakdown</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Monthly Overhead</div>
+                  <div className="text-lg font-bold">{formatCurrency(monthlyOverhead)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{overhead.length} items</div>
+                </div>
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Weekly Payroll</div>
                   <div className="text-lg font-bold">{formatCurrency(payrollTotal)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{payroll.length} employees</div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">COGS</div>
-                  <div className="text-lg font-bold">{formatCurrency(cogsTotal)}</div>
-                </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
                   <div className="text-xs text-gray-500 uppercase mb-1">Commissions</div>
                   <div className="text-lg font-bold">{formatCurrency(commissionsTotal)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{commissions.length.toLocaleString()} paid</div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Taxes</div>
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">TPT Taxes Due</div>
                   <div className="text-lg font-bold">{formatCurrency(taxesTotal)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{taxes.length} items</div>
                 </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Rebates</div>
-                  <div className="text-lg font-bold text-green-600">-{formatCurrency(rebatesTotal)}</div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-xs text-gray-500 uppercase mb-1">Rebates Expected</div>
+                  <div className="text-lg font-bold text-green-600">{formatCurrency(rebatesTotal)}</div>
+                  <div className="text-xs text-gray-500 mt-1">{rebates.length.toLocaleString()} pending</div>
                 </div>
               </div>
             </div>
 
-            {/* Alerts */}
+            {/* Alerts & Insights */}
             <div className="space-y-3">
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
                 <div className="flex">
                   <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      <strong>⚠️ Cash Flow Alert:</strong> Heavy payment concentration on the 15th ({formatCurrency(10797)}). Consider negotiating payment date changes.
+                    <p className="text-sm text-blue-700">
+                      <strong>💡 Business Health:</strong> YTD margin of {marginPercent.toFixed(1)}% with average monthly revenue of {formatCurrency(avgMonthlyRevenue)}. Net cash flow per month: {formatCurrency(estimatedMonthlyCashFlow)}.
                     </p>
                   </div>
                 </div>
               </div>
-              {currentCash < 10000 && (
+
+              {estimatedMonthlyCashFlow > 0 ? (
+                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-lg">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <p className="text-sm text-green-700">
+                        <strong>✅ Positive Cash Flow:</strong> Generating approximately {formatCurrency(estimatedMonthlyCashFlow)}/month after all expenses. Rebates of {formatCurrency(rebatesTotal)} expected to boost cash position.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
                 <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
                   <div className="flex">
                     <div className="ml-3">
                       <p className="text-sm text-red-700">
-                        <strong>🚨 Low Cash Warning:</strong> Current balance below $10,000 threshold.
+                        <strong>🚨 Cash Flow Warning:</strong> Monthly expenses ({formatCurrency(monthlyExpenses)}) exceed average revenue. Review overhead and payroll costs.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
+
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                <div className="flex">
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>⚠️ Outstanding Items:</strong> {cogs.length.toLocaleString()} COGS items ({formatCurrency(cogsTotal)}), {commissions.length.toLocaleString()} commissions ({formatCurrency(commissionsTotal)}), and {rebates.length.toLocaleString()} rebates ({formatCurrency(rebatesTotal)}) to reconcile.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Upcoming Payments */}
@@ -946,7 +1030,7 @@ export default function Home() {
                   <tbody className="divide-y divide-gray-200">
                     {forecastData.slice(0, 7).map((item, index) => {
                       const dailyIncome = businessMetrics.avgMonthlyRevenue / 30;
-                      const startBalance = index === 0 ? currentCash : forecastData[index - 1].balance;
+                      const startBalance = index === 0 ? estimatedCurrentCash : forecastData[index - 1].balance;
                       const expenses = startBalance + dailyIncome - item.balance;
                       
                       return (
