@@ -77,6 +77,7 @@ export default function Home() {
   const [commissions] = useState<Commission[]>(sampleCommissions);
   const [taxes] = useState<Tax[]>(sampleTaxes);
   const [rebates] = useState<Rebate[]>(sampleRebates);
+  const [cogsPage, setCogsPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle URL parameters for deep linking to tabs
@@ -88,6 +89,13 @@ export default function Home() {
       setActiveTab(tabParam);
     }
   }, []);
+
+  // Reset COGS page when switching tabs
+  useEffect(() => {
+    if (activeTab === 'cogs') {
+      setCogsPage(1);
+    }
+  }, [activeTab]);
 
   // Update URL when tab changes
   const handleTabChange = (tab: string) => {
@@ -497,58 +505,138 @@ export default function Home() {
         )}
 
         {/* COGS Tab */}
-        {activeTab === 'cogs' && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">📦 Cost of Goods Sold (2025)</h2>
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-gray-600">
-                  Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> |
-                  Total TPT Taxes (7.9%): <strong>{formatCurrency(cogsTotal * 0.079)}</strong> |
-                  Grand Total: <strong>{formatCurrency(cogsTotal * 1.079)}</strong> |
-                  ({cogs.length.toLocaleString()} transactions)
-                </p>
+        {activeTab === 'cogs' && (() => {
+          const itemsPerPage = 100;
+          const totalPages = Math.ceil(cogs.length / itemsPerPage);
+          const startIndex = (cogsPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const currentItems = cogs.slice(startIndex, endIndex);
+
+          // Generate page numbers to show
+          const getPageNumbers = () => {
+            const pages = [];
+            const maxPagesToShow = 7;
+
+            if (totalPages <= maxPagesToShow) {
+              for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+              }
+            } else {
+              if (cogsPage <= 4) {
+                for (let i = 1; i <= 5; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+              } else if (cogsPage >= totalPages - 3) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                pages.push('...');
+                for (let i = cogsPage - 1; i <= cogsPage + 1; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+              }
+            }
+            return pages;
+          };
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-xl font-semibold">📦 Cost of Goods Sold (2025)</h2>
+                <div className="flex justify-between items-center mt-2">
+                  <p className="text-gray-600">
+                    Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> |
+                    Total TPT Taxes (7.9%): <strong>{formatCurrency(cogsTotal * 0.079)}</strong> |
+                    Grand Total: <strong>{formatCurrency(cogsTotal * 1.079)}</strong> |
+                    ({cogs.length.toLocaleString()} transactions)
+                  </p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">TPT Taxes (7.9%)</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {currentItems.map((item, index) => {
+                      const tptTax = item.cost * 0.079;
+                      const total = item.cost + tptTax;
+                      return (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm">{item.date}</td>
+                          <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
+                          <td className="px-6 py-4 text-sm">{item.customer}</td>
+                          <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.cost)}</td>
+                          <td className="px-6 py-4 text-sm text-right text-orange-600">{formatCurrency(tptTax)}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-right text-blue-600">{formatCurrency(total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {startIndex + 1}-{Math.min(endIndex, cogs.length)} of {cogs.length.toLocaleString()} transactions
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCogsPage(prev => Math.max(1, prev - 1))}
+                    disabled={cogsPage === 1}
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      cogsPage === 1
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                    }`}
+                  >
+                    Previous
+                  </button>
+
+                  {getPageNumbers().map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">...</span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => setCogsPage(page as number)}
+                        className={`px-3 py-1 rounded text-sm font-medium ${
+                          cogsPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ))}
+
+                  <button
+                    onClick={() => setCogsPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={cogsPage === totalPages}
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      cogsPage === totalPages
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">TPT Taxes (7.9%)</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {cogs.slice(0, 100).map((item, index) => {
-                    const tptTax = item.cost * 0.079;
-                    const total = item.cost + tptTax;
-                    return (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm">{item.date}</td>
-                        <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
-                        <td className="px-6 py-4 text-sm">{item.customer}</td>
-                        <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.cost)}</td>
-                        <td className="px-6 py-4 text-sm text-right text-orange-600">{formatCurrency(tptTax)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-right text-blue-600">{formatCurrency(total)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-sm text-gray-500 text-center">
-                      Showing first 100 of {cogs.length.toLocaleString()} transactions
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Commissions Tab */}
         {activeTab === 'commissions' && (
