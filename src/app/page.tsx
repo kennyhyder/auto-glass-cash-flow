@@ -6,7 +6,6 @@ import {
   staticOverhead,
   samplePayroll,
   sampleDebts,
-  sampleCommissions,
   sampleTaxes,
   businessMetrics,
   monthlyMarketingCosts
@@ -14,6 +13,7 @@ import {
 import monthlyData2025 from '@/lib/monthly-data-2025.json';
 import cogsData2025 from '@/lib/cogs-data-2025.json';
 import rebatesData2025 from '@/lib/rebates-data-2025.json';
+import commissionsData2025 from '@/lib/commissions-data-2025.json';
 
 // Types
 interface Payment {
@@ -34,15 +34,11 @@ interface COGSItem {
 }
 
 interface Commission {
-  rep: string;
-  period: string;
+  id: string;
+  customer: string;
   sales: number;
-  rate: number;
   commission: number;
-  bonus: number;
-  total: number;
-  payDate: number;
-  status: string;
+  commissionPercent: number;
 }
 
 interface Tax {
@@ -72,11 +68,12 @@ export default function Home() {
   const [payroll] = useState(samplePayroll);
   const [debts] = useState(sampleDebts);
   const [cogs] = useState<COGSItem[]>(cogsData2025 as COGSItem[]);
-  const [commissions] = useState<Commission[]>(sampleCommissions);
+  const [commissions] = useState<Commission[]>(commissionsData2025 as Commission[]);
   const [taxes] = useState<Tax[]>(sampleTaxes);
   const [rebates] = useState<Rebate[]>(rebatesData2025 as Rebate[]);
   const [cogsPage, setCogsPage] = useState(1);
   const [rebatesPage, setRebatesPage] = useState(1);
+  const [commissionsPage, setCommissionsPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle URL parameters for deep linking to tabs
@@ -89,13 +86,16 @@ export default function Home() {
     }
   }, []);
 
-  // Reset COGS page when switching tabs
+  // Reset page when switching tabs
   useEffect(() => {
     if (activeTab === 'cogs') {
       setCogsPage(1);
     }
     if (activeTab === 'rebates') {
       setRebatesPage(1);
+    }
+    if (activeTab === 'commissions') {
+      setCommissionsPage(1);
     }
   }, [activeTab]);
 
@@ -113,7 +113,7 @@ export default function Home() {
   const payrollTotal = payroll.reduce((sum, item) => sum + item.gross, 0);
   const debtTotal = debts.reduce((sum, item) => sum + item.current, 0);
   const cogsTotal = cogs.reduce((sum, item) => sum + item.cost, 0);
-  const commissionsTotal = commissions.reduce((sum, item) => sum + item.total, 0);
+  const commissionsTotal = commissions.reduce((sum, item) => sum + item.commission, 0);
   const taxesTotal = taxes.reduce((sum, item) => sum + item.due, 0);
   const rebatesTotal = rebates.reduce((sum, item) => sum + item.rebateAmount, 0);
   
@@ -629,50 +629,116 @@ export default function Home() {
         })()}
 
         {/* Commissions Tab */}
-        {activeTab === 'commissions' && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">💵 Sales Commissions</h2>
-              <p className="text-gray-600">Total Due: <strong>{formatCurrency(commissionsTotal)}</strong></p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales Rep</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Sales</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bonus</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Payout</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {commissions.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{item.rep}</td>
-                      <td className="px-6 py-4 text-sm">{item.period}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.sales)}</td>
-                      <td className="px-6 py-4 text-sm">{item.rate}%</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.commission)}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.bonus)}</td>
-                      <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.total)}</td>
-                      <td className="px-6 py-4 text-sm">{item.payDate}th</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                          {item.status}
-                        </span>
-                      </td>
+        {activeTab === 'commissions' && (() => {
+          const itemsPerPage = 100;
+          const totalPages = Math.ceil(commissions.length / itemsPerPage);
+          const startIndex = (commissionsPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const currentCommissions = commissions.slice(startIndex, endIndex);
+
+          // Smart page numbers (show first, last, and pages around current)
+          const getPageNumbers = () => {
+            const pages: (number | string)[] = [];
+            if (totalPages <= 7) {
+              return Array.from({ length: totalPages }, (_, i) => i + 1);
+            }
+
+            pages.push(1);
+
+            if (commissionsPage > 3) {
+              pages.push('...');
+            }
+
+            for (let i = Math.max(2, commissionsPage - 1); i <= Math.min(totalPages - 1, commissionsPage + 1); i++) {
+              pages.push(i);
+            }
+
+            if (commissionsPage < totalPages - 2) {
+              pages.push('...');
+            }
+
+            if (totalPages > 1) {
+              pages.push(totalPages);
+            }
+
+            return pages;
+          };
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-xl font-semibold">💵 Sales Commissions</h2>
+                <p className="text-gray-600">Total: <strong>{formatCurrency(commissionsTotal)}</strong> ({commissions.length.toLocaleString()} transactions)</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission %</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {currentCommissions.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
+                        <td className="px-6 py-4 text-sm">{item.customer}</td>
+                        <td className="px-6 py-4 text-sm">{formatCurrency(item.sales)}</td>
+                        <td className="px-6 py-4 text-sm">{item.commissionPercent.toFixed(2)}%</td>
+                        <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.commission)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {startIndex + 1}-{Math.min(endIndex, commissions.length)} of {commissions.length.toLocaleString()} transactions
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCommissionsPage(p => Math.max(1, p - 1))}
+                      disabled={commissionsPage === 1}
+                      className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    {getPageNumbers().map((page, idx) => (
+                      page === '...' ? (
+                        <span key={idx} className="px-4 py-2 text-sm">...</span>
+                      ) : (
+                        <button
+                          key={idx}
+                          onClick={() => setCommissionsPage(page as number)}
+                          className={`px-4 py-2 text-sm border rounded-lg ${
+                            commissionsPage === page
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    ))}
+                    <button
+                      onClick={() => setCommissionsPage(p => Math.min(totalPages, p + 1))}
+                      disabled={commissionsPage === totalPages}
+                      className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Taxes Tab */}
         {activeTab === 'taxes' && (
