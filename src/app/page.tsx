@@ -8,12 +8,12 @@ import {
   sampleDebts,
   sampleCommissions,
   sampleTaxes,
-  sampleRebates,
   businessMetrics,
   monthlyMarketingCosts
 } from '@/lib/data';
 import monthlyData2025 from '@/lib/monthly-data-2025.json';
 import cogsData2025 from '@/lib/cogs-data-2025.json';
+import rebatesData2025 from '@/lib/rebates-data-2025.json';
 
 // Types
 interface Payment {
@@ -57,14 +57,12 @@ interface Tax {
 }
 
 interface Rebate {
-  insurance: string;
-  claim: string;
+  id: string;
+  date: string;
   customer: string;
-  invoice: number;
-  rate: number;
-  amount: number;
-  expectedDate: string;
-  status: string;
+  invoiceAmount: number;
+  rebateAmount: number;
+  rebatePercent: number;
 }
 
 export default function Home() {
@@ -76,8 +74,9 @@ export default function Home() {
   const [cogs] = useState<COGSItem[]>(cogsData2025 as COGSItem[]);
   const [commissions] = useState<Commission[]>(sampleCommissions);
   const [taxes] = useState<Tax[]>(sampleTaxes);
-  const [rebates] = useState<Rebate[]>(sampleRebates);
+  const [rebates] = useState<Rebate[]>(rebatesData2025 as Rebate[]);
   const [cogsPage, setCogsPage] = useState(1);
+  const [rebatesPage, setRebatesPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle URL parameters for deep linking to tabs
@@ -94,6 +93,9 @@ export default function Home() {
   useEffect(() => {
     if (activeTab === 'cogs') {
       setCogsPage(1);
+    }
+    if (activeTab === 'rebates') {
+      setRebatesPage(1);
     }
   }, [activeTab]);
 
@@ -113,7 +115,7 @@ export default function Home() {
   const cogsTotal = cogs.reduce((sum, item) => sum + item.cost, 0);
   const commissionsTotal = commissions.reduce((sum, item) => sum + item.total, 0);
   const taxesTotal = taxes.reduce((sum, item) => sum + item.due, 0);
-  const rebatesTotal = rebates.reduce((sum, item) => sum + item.amount, 0);
+  const rebatesTotal = rebates.reduce((sum, item) => sum + item.rebateAmount, 0);
   
   // Calculate daily obligations
   const today = new Date();
@@ -717,48 +719,127 @@ export default function Home() {
         )}
 
         {/* Rebates Tab */}
-        {activeTab === 'rebates' && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">💸 Insurance Rebates</h2>
-              <p className="text-gray-600">Expected Income: <strong className="text-green-600">{formatCurrency(rebatesTotal)}</strong></p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Insurance Co</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claim #</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rebate %</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rebate Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expected Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {rebates.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{item.insurance}</td>
-                      <td className="px-6 py-4 text-sm">{item.claim}</td>
-                      <td className="px-6 py-4 text-sm">{item.customer}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.invoice)}</td>
-                      <td className="px-6 py-4 text-sm">{item.rate}%</td>
-                      <td className="px-6 py-4 text-sm font-bold text-green-600">{formatCurrency(item.amount)}</td>
-                      <td className="px-6 py-4 text-sm">{item.expectedDate}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                          {item.status}
-                        </span>
-                      </td>
+        {activeTab === 'rebates' && (() => {
+          const itemsPerPage = 100;
+          const totalPages = Math.ceil(rebates.length / itemsPerPage);
+          const startIndex = (rebatesPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const currentItems = rebates.slice(startIndex, endIndex);
+
+          // Generate page numbers to show
+          const getPageNumbers = () => {
+            const pages = [];
+            const maxPagesToShow = 7;
+
+            if (totalPages <= maxPagesToShow) {
+              for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+              }
+            } else {
+              if (rebatesPage <= 4) {
+                for (let i = 1; i <= 5; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+              } else if (rebatesPage >= totalPages - 3) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                pages.push('...');
+                for (let i = rebatesPage - 1; i <= rebatesPage + 1; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+              }
+            }
+            return pages;
+          };
+
+          return (
+            <div className="bg-white rounded-xl shadow-sm">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-xl font-semibold">💸 Customer Rebates (2025)</h2>
+                <p className="text-gray-600">
+                  Total Rebates: <strong className="text-green-600">{formatCurrency(rebatesTotal)}</strong> ({rebates.length.toLocaleString()} transactions)
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Invoice Amount</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rebate %</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rebate Amount</th>
                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {currentItems.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm">{item.date}</td>
+                        <td className="px-6 py-4 text-sm">{item.customer}</td>
+                        <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.invoiceAmount)}</td>
+                        <td className="px-6 py-4 text-sm text-right">{item.rebatePercent.toFixed(1)}%</td>
+                        <td className="px-6 py-4 text-sm font-bold text-right text-green-600">{formatCurrency(item.rebateAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {startIndex + 1}-{Math.min(endIndex, rebates.length)} of {rebates.length.toLocaleString()} transactions
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setRebatesPage(prev => Math.max(1, prev - 1))}
+                    disabled={rebatesPage === 1}
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      rebatesPage === 1
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                    }`}
+                  >
+                    Previous
+                  </button>
+
+                  {getPageNumbers().map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">...</span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => setRebatesPage(page as number)}
+                        className={`px-3 py-1 rounded text-sm font-medium ${
+                          rebatesPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
                   ))}
-                </tbody>
-              </table>
+
+                  <button
+                    onClick={() => setRebatesPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={rebatesPage === totalPages}
+                    className={`px-3 py-1 rounded text-sm font-medium ${
+                      rebatesPage === totalPages
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Forecast Tab */}
         {activeTab === 'forecast' && (
