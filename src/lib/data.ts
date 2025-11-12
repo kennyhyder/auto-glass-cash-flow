@@ -3,7 +3,7 @@ export const businessMetrics = {
   avgMonthlyRevenue: 272316,
   avgMonthlyGrossMargin: 142849,
   grossMarginPercent: 52.46,
-  monthlyOverhead: 32642,
+  monthlyOverhead: 117567.14,
   avgTransactionSize: 686,
   monthlyTransactions: 397,
   netProfit: 110208,
@@ -20,7 +20,7 @@ export const staticOverhead = [
   {name: "Office Rent (10th)", amount: 1545.48, day: 10, category: "Rent", vendor: "Property Mgmt", autoPay: true},
   {name: "Amur", amount: 1500, day: 10, category: "Services", vendor: "Amur", autoPay: false},
   {name: "T-Mobile", amount: 600, day: 15, category: "Phone", vendor: "T-Mobile", autoPay: true},
-  {name: "Marketing", amount: 5000, day: 15, category: "Marketing", vendor: "Various", autoPay: false},
+  {name: "Marketing", amount: 50000, day: 15, category: "Marketing", vendor: "Various", autoPay: false},
   {name: "Kemper Insurance", amount: 3206.84, day: 15, category: "Insurance", vendor: "Kemper", autoPay: true},
   {name: "Channel", amount: 1809, day: 15, category: "Services", vendor: "Channel", autoPay: false},
   {name: "Intuit/QB", amount: 106.72, day: 15, category: "Software", vendor: "Intuit", autoPay: true},
@@ -36,7 +36,11 @@ export const staticOverhead = [
   {name: "Workers Comp", amount: 715.52, day: 26, category: "Insurance", vendor: "State Fund", autoPay: true},
   {name: "Cox Internet", amount: 500, day: 27, category: "Utilities", vendor: "Cox", autoPay: true},
   {name: "Ally Vehicle", amount: 600, day: 27, category: "Debt", vendor: "Ally", autoPay: true},
-  {name: "Sales Tax", amount: 2000, day: 30, category: "Tax", vendor: "State", autoPay: false}
+  {name: "Sales Tax", amount: 2000, day: 30, category: "Tax", vendor: "State", autoPay: false},
+  {name: "Payroll (Week 1)", amount: 10000, day: 7, category: "Payroll", vendor: "ADP", autoPay: true},
+  {name: "Payroll (Week 2)", amount: 10000, day: 14, category: "Payroll", vendor: "ADP", autoPay: true},
+  {name: "Payroll (Week 3)", amount: 10000, day: 21, category: "Payroll", vendor: "ADP", autoPay: true},
+  {name: "Payroll (Week 4)", amount: 10000, day: 28, category: "Payroll", vendor: "ADP", autoPay: true}
 ];
 
 // Sample payroll data
