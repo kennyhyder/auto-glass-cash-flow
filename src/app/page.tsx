@@ -303,7 +303,7 @@ export default function Home() {
       <nav className="max-w-7xl mx-auto px-4 py-4">
         <div className="bg-white p-2 rounded-xl shadow-sm">
           <div className="flex flex-wrap gap-1">
-            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'rebates', 'forecast', 'analysis', '2025-performance'].map((tab) => (
+            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'rebates', 'forecast', '2025-performance'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => handleTabChange(tab)}
@@ -1140,71 +1140,6 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Analysis Tab */}
-        {activeTab === 'analysis' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Expense Analysis by Category</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{formatCurrency(overheadTotal)}</div>
-                  <div className="text-sm text-gray-600">Overhead ({((overheadTotal / (overheadTotal + payrollTotal + cogsTotal)) * 100).toFixed(1)}%)</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{formatCurrency(payrollTotal)}</div>
-                  <div className="text-sm text-gray-600">Payroll ({((payrollTotal / (overheadTotal + payrollTotal + cogsTotal)) * 100).toFixed(1)}%)</div>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">{formatCurrency(cogsTotal)}</div>
-                  <div className="text-sm text-gray-600">COGS ({((cogsTotal / (overheadTotal + payrollTotal + cogsTotal)) * 100).toFixed(1)}%)</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{formatCurrency(commissionsTotal)}</div>
-                  <div className="text-sm text-gray-600">Commissions</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">{formatCurrency(taxesTotal)}</div>
-                  <div className="text-sm text-gray-600">Taxes</div>
-                </div>
-                <div className="text-center p-4 bg-indigo-50 rounded-lg">
-                  <div className="text-2xl font-bold text-indigo-600">{formatCurrency(rebatesTotal)}</div>
-                  <div className="text-sm text-gray-600">Rebates (Income)</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📅 Payment Distribution by Day</h2>
-              <div className="space-y-2">
-                {[1, 5, 10, 15, 20, 25, 30].map(day => {
-                  const dayTotal = overhead
-                    .filter(item => item.day === day)
-                    .reduce((sum, item) => sum + item.amount, 0);
-                  const hasPayroll = day === 5 || day === 20;
-                  const total = dayTotal + (hasPayroll ? 25000 : 0);
-                  
-                  return (
-                    <div key={day} className="flex items-center gap-4">
-                      <div className="w-20 text-sm font-medium">Day {day}</div>
-                      <div className="flex-1">
-                        <div className="h-8 bg-gray-200 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${total > 10000 ? 'bg-red-500' : total > 5000 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${Math.min((total / 40000) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="w-24 text-right text-sm font-medium">
-                        {formatCurrency(total)}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           </div>
