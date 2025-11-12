@@ -1167,15 +1167,16 @@ export default function Home() {
                 </div>
               </div>
               <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total Overhead</div>
+                <div className="text-sm text-gray-600 mb-1">Total Expenses</div>
                 <div className="text-2xl font-bold text-red-600">
                   {(() => {
-                    // Base overhead (without fixed marketing) + actual monthly marketing costs
-                    const baseOverhead = 67567.14; // businessMetrics.monthlyOverhead - 50000
+                    // Base overhead + marketing + payroll
+                    const baseOverhead = 67567.14;
                     const totalMarketingCosts = monthlyData2025
                       .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                       .reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    return formatCurrency((baseOverhead * 10) + totalMarketingCosts);
+                    const totalPayroll = (payrollTotal * 4) * 10; // 10 months of payroll
+                    return formatCurrency((baseOverhead * 10) + totalMarketingCosts + totalPayroll);
                   })()}
                 </div>
               </div>
@@ -1187,8 +1188,9 @@ export default function Home() {
                     const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
                     const baseOverhead = 67567.14;
                     const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
-                    return formatCurrency(totalMargin - totalOverhead);
+                    const totalPayroll = (payrollTotal * 4) * 10; // 10 months
+                    const totalExpenses = (baseOverhead * 10) + totalMarketingCosts + totalPayroll;
+                    return formatCurrency(totalMargin - totalExpenses);
                   })()}
                 </div>
               </div>
@@ -1201,8 +1203,9 @@ export default function Home() {
                     const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
                     const baseOverhead = 67567.14;
                     const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
-                    const netProfit = totalMargin - totalOverhead;
+                    const totalPayroll = (payrollTotal * 4) * 10; // 10 months
+                    const totalExpenses = (baseOverhead * 10) + totalMarketingCosts + totalPayroll;
+                    const netProfit = totalMargin - totalExpenses;
                     return ((netProfit / totalRevenue) * 100).toFixed(2);
                   })()}%
                 </div>
@@ -1225,7 +1228,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-red-500 rounded"></div>
-                  <span className="text-sm text-gray-700">Overhead</span>
+                  <span className="text-sm text-gray-700">Expenses (Overhead + Payroll)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-green-500 rounded"></div>
@@ -1242,7 +1245,8 @@ export default function Home() {
                     const baseOverhead = 67567.14;
                     const marketingCost = monthlyMarketingCosts[month.month] || 0;
                     const overhead = baseOverhead + marketingCost;
-                    const netProfit = month.margin - overhead;
+                    const monthlyPayroll = payrollTotal * 4; // Weekly payroll * 4 weeks
+                    const netProfit = month.margin - overhead - monthlyPayroll;
                     const maxValue = Math.max(...monthlyData2025
                       .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
                       .map(m => m.revenue));
@@ -1296,23 +1300,23 @@ export default function Home() {
                             </div>
                           </div>
 
-                          {/* Overhead Bar */}
+                          {/* Expenses (Overhead + Payroll) Bar */}
                           <div className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-gray-600">Overhead</div>
+                            <div className="w-20 text-xs text-gray-600">Expenses</div>
                             <div className="flex-1">
                               <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
                                 <div
                                   className="h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-end px-2"
-                                  style={{ width: `${(overhead / maxValue) * 100}%` }}
+                                  style={{ width: `${((overhead + monthlyPayroll) / maxValue) * 100}%` }}
                                 >
                                   <span className="text-white text-xs font-semibold">
-                                    {formatCurrency(overhead)}
+                                    {formatCurrency(overhead + monthlyPayroll)}
                                   </span>
                                 </div>
                               </div>
                             </div>
                             <div className="w-16 text-xs text-gray-500 text-right">
-                              {((overhead / month.revenue) * 100).toFixed(1)}%
+                              {(((overhead + monthlyPayroll) / month.revenue) * 100).toFixed(1)}%
                             </div>
                           </div>
 
