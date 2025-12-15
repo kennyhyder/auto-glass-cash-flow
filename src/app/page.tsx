@@ -249,7 +249,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-[#1B4B82] shadow-lg">
+      <header className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-4">
             <img
@@ -257,8 +257,8 @@ export default function Home() {
               alt="Auto Glass 2020"
               className="h-12 w-auto"
             />
-            <div className="h-8 w-px bg-[#6BA4D0]/30"></div>
-            <h1 className="text-xl font-semibold text-white">Financial Dashboard</h1>
+            <div className="h-8 w-px bg-[#1B4B82]/20"></div>
+            <h1 className="text-xl font-semibold text-[#1B4B82]">Financial Dashboard</h1>
           </div>
         </div>
       </header>
