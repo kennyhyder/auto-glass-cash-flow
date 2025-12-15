@@ -386,35 +386,31 @@ export default function Home() {
         {/* Forecast Tab */}
         {activeTab === 'forecast' && (
           <div className="space-y-6">
-            {/* Ad Spend Performance Correlation */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-purple-800 mb-2">Ad Spend Performance Correlation</h2>
-              <p className="text-sm text-purple-600 mb-4">Real data from June-August 2025 showing how ad spend drives job conversions</p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="text-purple-700">
-                      <th className="px-3 py-2 text-left">Week</th>
-                      <th className="px-3 py-2 text-right">Ad Spend</th>
-                      <th className="px-3 py-2 text-right">Jobs</th>
-                      <th className="px-3 py-2 text-right">Revenue</th>
-                      <th className="px-3 py-2 text-right">ROAS</th>
-                      <th className="px-3 py-2 text-right">Cost/Job</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-purple-100">
-                    {adSpendPerformance.map((week) => (
-                      <tr key={week.week} className="hover:bg-purple-100/50">
-                        <td className="px-3 py-2 font-medium">{week.week}</td>
-                        <td className="px-3 py-2 text-right">{formatCurrency(week.adSpend)}</td>
-                        <td className="px-3 py-2 text-right font-medium">{week.conversions}</td>
-                        <td className="px-3 py-2 text-right text-green-600">{formatCurrency(week.revenue)}</td>
-                        <td className="px-3 py-2 text-right">{week.roas.toFixed(1)}x</td>
-                        <td className="px-3 py-2 text-right">{formatCurrency(week.adSpend / week.conversions)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Real Performance Reference */}
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-blue-800 mb-2">Actual Performance Data (Nov-Dec 2025)</h2>
+              <p className="text-sm text-blue-600 mb-4">Based on real margin report data - 457 jobs over 44 days at ~$15k/week ad spend</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Avg Jobs/Week</p>
+                  <p className="text-xl font-bold text-gray-900">72.7</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Avg Revenue/Job</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(690.51)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Margin %</p>
+                  <p className="text-xl font-bold text-blue-600">57.8%</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Weekly Ad Spend</p>
+                  <p className="text-xl font-bold text-red-600">~$15k</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Jobs per $1k Ads</p>
+                  <p className="text-xl font-bold text-purple-600">~4.8</p>
+                </div>
               </div>
             </div>
 

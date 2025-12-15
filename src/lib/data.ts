@@ -213,42 +213,47 @@ export const weeklyPerformanceStats = {
   marginVariabilityHigh: 1.15,  // 15% above average possible
 };
 
-// Ad spend to conversions correlation data (from 6/30/25 - 8/11/25 performance)
+// Ad spend to performance correlation data (from 6/30/25 - 8/11/25)
+// Note: "conversions" here are ad leads/calls, NOT completed jobs
+// Actual completed jobs are much lower - see calculateJobsFromAdSpend
 export const adSpendPerformance = [
-  { week: "6/30", adSpend: 9190, conversions: 221, revenue: 53173, margin: 49.56, roas: 5.8 },
-  { week: "7/7", adSpend: 10117, conversions: 295, revenue: 64250, margin: 47.41, roas: 6.4 },
-  { week: "7/14", adSpend: 12572, conversions: 291, revenue: 65271, margin: 49.32, roas: 5.2 },
-  { week: "7/21", adSpend: 13742, conversions: 311, revenue: 54435, margin: 49.45, roas: 4.0 },
-  { week: "7/28", adSpend: 19457, conversions: 373, revenue: 79487, margin: 52.59, roas: 4.1 },
-  { week: "8/4", adSpend: 22144, conversions: 417, revenue: 87665, margin: 51.88, roas: 4.0 },
-  { week: "8/11", adSpend: 18991, conversions: 366, revenue: 78051, margin: 55.53, roas: 4.1 },
+  { week: "6/30", adSpend: 9190, leads: 221, revenue: 53173, margin: 49.56, roas: 5.8 },
+  { week: "7/7", adSpend: 10117, leads: 295, revenue: 64250, margin: 47.41, roas: 6.4 },
+  { week: "7/14", adSpend: 12572, leads: 291, revenue: 65271, margin: 49.32, roas: 5.2 },
+  { week: "7/21", adSpend: 13742, leads: 311, revenue: 54435, margin: 49.45, roas: 4.0 },
+  { week: "7/28", adSpend: 19457, leads: 373, revenue: 79487, margin: 52.59, roas: 4.1 },
+  { week: "8/4", adSpend: 22144, leads: 417, revenue: 87665, margin: 51.88, roas: 4.0 },
+  { week: "8/11", adSpend: 18991, leads: 366, revenue: 78051, margin: 55.53, roas: 4.1 },
 ];
 
-// Calculate jobs from ad spend based on real performance data
-// Uses linear regression with diminishing returns at higher spend levels
+// Calculate actual completed jobs from ad spend based on REAL margin report data
+// Nov-Dec 2025: 457 jobs over 44 days = 72.7 jobs/week at ~$15k/week ad spend
 export function calculateJobsFromAdSpend(weeklyAdSpend: number): number {
-  // Based on actual data:
-  // Low spend ($9-10k): ~25-29 jobs per $1k
-  // Medium spend ($12-14k): ~22-23 jobs per $1k
-  // High spend ($19-22k): ~19 jobs per $1k
-  // Using a formula that captures diminishing returns
-  const baseJobsPerThousand = 28; // At low spend
-  const diminishingFactor = 0.0004; // Rate of diminishing returns
+  // Real data points:
+  // - Nov-Dec 2025: ~$15k/week ad spend → 72.7 jobs/week
+  // - Lower spend months had fewer jobs, higher spend had more
+  // Base calculation: ~4.8 jobs per $1k ad spend at moderate levels
+  // With diminishing returns at higher spend
 
+  const baseJobsPerThousand = 5.0; // Base rate at moderate spend
+  const diminishingFactor = 0.015; // Small diminishing returns
+
+  // Calculate with slight curve for diminishing returns
+  const spendInThousands = weeklyAdSpend / 1000;
   const effectiveRate = Math.max(
-    15, // Minimum jobs per $1k (floor)
-    baseJobsPerThousand - (weeklyAdSpend / 1000) * diminishingFactor * (weeklyAdSpend / 1000)
+    3.5, // Floor: minimum 3.5 jobs per $1k
+    baseJobsPerThousand - (spendInThousands * diminishingFactor)
   );
 
-  return Math.round((weeklyAdSpend / 1000) * effectiveRate);
+  return Math.round(spendInThousands * effectiveRate);
 }
 
 // Calculate expected ROAS from ad spend (higher spend = slightly lower ROAS)
 export function calculateROAS(weeklyAdSpend: number): number {
-  // Based on data: ROAS ranges from 4.0-6.4, inversely related to spend
-  const baseROAS = 6.5;
-  const declineRate = 0.00012;
-  return Math.max(3.5, baseROAS - weeklyAdSpend * declineRate);
+  // Based on data: ROAS ranges from 3.5-5.5 for actual completed jobs
+  const baseROAS = 5.0;
+  const declineRate = 0.00005;
+  return Math.max(3.0, baseROAS - weeklyAdSpend * declineRate);
 }
 
 // Historical weekly job counts (simulated based on patterns)
