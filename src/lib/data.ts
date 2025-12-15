@@ -226,34 +226,44 @@ export const adSpendPerformance = [
   { week: "8/11", adSpend: 18991, leads: 366, revenue: 78051, margin: 55.53, roas: 4.1 },
 ];
 
-// Calculate actual completed jobs from ad spend based on REAL margin report data
-// Nov-Dec 2025: 457 jobs over 44 days = 72.7 jobs/week at ~$15k/week ad spend
-export function calculateJobsFromAdSpend(weeklyAdSpend: number): number {
-  // Real data points:
-  // - Nov-Dec 2025: ~$15k/week ad spend → 72.7 jobs/week
-  // - Lower spend months had fewer jobs, higher spend had more
-  // Base calculation: ~4.8 jobs per $1k ad spend at moderate levels
-  // With diminishing returns at higher spend
+// Calculate ad spend needed for a target number of jobs
+// Based on Nov-Dec 2025: 72.7 jobs/week at ~$15k/week = ~$206 per job in ad spend
+export function calculateAdSpendFromJobs(jobsPerWeek: number): number {
+  // Real data: ~$206 ad spend per completed job at moderate volumes
+  // Slightly more efficient at lower volumes, less efficient at higher volumes
+  const baseSpendPerJob = 206;
+  const efficiencyFactor = 0.5; // Small increase in cost per job at higher volumes
 
-  const baseJobsPerThousand = 5.0; // Base rate at moderate spend
-  const diminishingFactor = 0.015; // Small diminishing returns
+  // Cost per job increases slightly with volume
+  const adjustedSpendPerJob = baseSpendPerJob + (jobsPerWeek - 73) * efficiencyFactor;
+  const finalSpendPerJob = Math.max(180, Math.min(250, adjustedSpendPerJob));
 
-  // Calculate with slight curve for diminishing returns
-  const spendInThousands = weeklyAdSpend / 1000;
-  const effectiveRate = Math.max(
-    3.5, // Floor: minimum 3.5 jobs per $1k
-    baseJobsPerThousand - (spendInThousands * diminishingFactor)
-  );
-
-  return Math.round(spendInThousands * effectiveRate);
+  return Math.round(jobsPerWeek * finalSpendPerJob);
 }
 
-// Calculate expected ROAS from ad spend (higher spend = slightly lower ROAS)
-export function calculateROAS(weeklyAdSpend: number): number {
-  // Based on data: ROAS ranges from 3.5-5.5 for actual completed jobs
-  const baseROAS = 5.0;
-  const declineRate = 0.00005;
-  return Math.max(3.0, baseROAS - weeklyAdSpend * declineRate);
+// Calculate jobs from ad spend (inverse function)
+export function calculateJobsFromAdSpend(weeklyAdSpend: number): number {
+  // ~$206 per job baseline
+  const baseSpendPerJob = 206;
+  return Math.round(weeklyAdSpend / baseSpendPerJob);
+}
+
+// Calculate expected ROAS from jobs/revenue
+export function calculateROAS(revenue: number, adSpend: number): number {
+  if (adSpend === 0) return 0;
+  return revenue / adSpend;
+}
+
+// Calculate monthly fixed overhead (excluding marketing/ad spend)
+export function getMonthlyFixedOverhead(): number {
+  return staticOverhead
+    .filter(item => item.category !== 'Marketing')
+    .reduce((sum, item) => sum + item.amount, 0);
+}
+
+// Get weekly fixed overhead
+export function getWeeklyFixedOverhead(): number {
+  return getMonthlyFixedOverhead() / 4;
 }
 
 // Historical weekly job counts (simulated based on patterns)
@@ -393,47 +403,67 @@ export const monthlyMarketingCosts: { [key: string]: number } = {
   "2025-12": 30750.16   // Dec 1-14: $93,602.74 total - $62,852.58 Nov
 };
 
-// Calculate forecast based on ad spend (ad spend drives job count)
+// Calculate forecast based on jobs per week (jobs drive everything else)
 export function calculateForecast(
-  weeklyAdSpend: number,
+  jobsPerWeek: number,
   weeks: number = 8,
   options: {
     avgJobRevenue?: number;
     marginPercent?: number;
-    useAdSpendCorrelation?: boolean; // If true, jobs derived from ad spend
-    manualJobsPerWeek?: number; // Override jobs if not using correlation
+    includeOverhead?: boolean; // Include fixed overhead in net profit calculation
   } = {}
 ) {
   const {
     avgJobRevenue = weeklyPerformanceStats.avgRevenuePerJob,
     marginPercent = weeklyPerformanceStats.marginPercent,
-    useAdSpendCorrelation = true,
-    manualJobsPerWeek
+    includeOverhead = true
   } = options;
 
   const forecast = [];
+  const weeklyOverhead = getWeeklyFixedOverhead();
+
+  let cumulativeJobs = 0;
+  let cumulativeRevenue = 0;
+  let cumulativeGrossMargin = 0;
+  let cumulativeAdSpend = 0;
+  let cumulativeOverhead = 0;
+  let cumulativeNetProfit = 0;
 
   for (let i = 0; i < weeks; i++) {
-    // Calculate jobs based on ad spend correlation or manual input
-    const weekJobs = useAdSpendCorrelation && !manualJobsPerWeek
-      ? calculateJobsFromAdSpend(weeklyAdSpend)
-      : (manualJobsPerWeek || weeklyPerformanceStats.avgJobsPerWeek);
-
-    const weekRevenue = weekJobs * avgJobRevenue;
+    // Calculate ad spend based on jobs
+    const weekAdSpend = calculateAdSpendFromJobs(jobsPerWeek);
+    const weekRevenue = jobsPerWeek * avgJobRevenue;
     const weekGrossMargin = weekRevenue * (marginPercent / 100);
-    // Net margin = Gross Margin - Ad Spend (consistent with 2025 Performance data)
-    const weekNetMargin = weekGrossMargin - weeklyAdSpend;
-    const roas = calculateROAS(weeklyAdSpend);
+    const weekOverhead = includeOverhead ? weeklyOverhead : 0;
+    // Net Profit = Gross Margin - Ad Spend - Fixed Overhead
+    const weekNetProfit = weekGrossMargin - weekAdSpend - weekOverhead;
+    const roas = calculateROAS(weekRevenue, weekAdSpend);
+
+    // Update cumulative totals
+    cumulativeJobs += jobsPerWeek;
+    cumulativeRevenue += weekRevenue;
+    cumulativeGrossMargin += weekGrossMargin;
+    cumulativeAdSpend += weekAdSpend;
+    cumulativeOverhead += weekOverhead;
+    cumulativeNetProfit += weekNetProfit;
 
     forecast.push({
       week: i + 1,
-      jobs: weekJobs,
+      jobs: jobsPerWeek,
       revenue: weekRevenue,
       grossMargin: weekGrossMargin,
-      adSpend: weeklyAdSpend,
-      netMargin: weekNetMargin,
+      adSpend: weekAdSpend,
+      overhead: weekOverhead,
+      netProfit: weekNetProfit,
       roas: roas,
-      costPerJob: weeklyAdSpend / weekJobs
+      costPerJob: weekAdSpend / jobsPerWeek,
+      // Cumulative totals
+      cumJobs: cumulativeJobs,
+      cumRevenue: cumulativeRevenue,
+      cumGrossMargin: cumulativeGrossMargin,
+      cumAdSpend: cumulativeAdSpend,
+      cumOverhead: cumulativeOverhead,
+      cumNetProfit: cumulativeNetProfit
     });
   }
 

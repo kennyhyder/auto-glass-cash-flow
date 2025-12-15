@@ -10,8 +10,8 @@ import {
   weeklyPerformanceStats,
   monthlyPerformance2025,
   calculateForecast,
-  calculateJobsFromAdSpend,
-  adSpendPerformance,
+  calculateAdSpendFromJobs,
+  getWeeklyFixedOverhead,
   novDecPerformance
 } from '@/lib/data';
 import {
@@ -63,38 +63,42 @@ export default function Home() {
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Forecast tool state - ad spend is primary driver
+  // Forecast tool state - jobs is primary driver
+  const [forecastJobsPerWeek, setForecastJobsPerWeek] = useState(73); // Default to actual avg
   const [forecastWeeks, setForecastWeeks] = useState(8);
-  const [forecastWeeklyAdSpend, setForecastWeeklyAdSpend] = useState(15000); // Default to ~$15k/week
   const [forecastAvgJobRevenue, setForecastAvgJobRevenue] = useState(weeklyPerformanceStats.avgRevenuePerJob);
   const [forecastMarginPercent, setForecastMarginPercent] = useState(weeklyPerformanceStats.marginPercent);
-  const [useAdSpendCorrelation, setUseAdSpendCorrelation] = useState(true);
-  const [manualJobsOverride, setManualJobsOverride] = useState(weeklyPerformanceStats.avgJobsPerWeek);
+  const [includeOverhead, setIncludeOverhead] = useState(true);
 
-  // Calculate expected jobs from ad spend
-  const expectedJobsFromAdSpend = useMemo(() => {
-    return calculateJobsFromAdSpend(forecastWeeklyAdSpend);
-  }, [forecastWeeklyAdSpend]);
+  // Calculate expected ad spend from jobs
+  const expectedAdSpend = useMemo(() => {
+    return calculateAdSpendFromJobs(forecastJobsPerWeek);
+  }, [forecastJobsPerWeek]);
+
+  // Get weekly overhead
+  const weeklyOverhead = useMemo(() => getWeeklyFixedOverhead(), []);
 
   // Calculate forecast based on inputs
   const forecastResults = useMemo(() => {
-    return calculateForecast(forecastWeeklyAdSpend, forecastWeeks, {
+    return calculateForecast(forecastJobsPerWeek, forecastWeeks, {
       avgJobRevenue: forecastAvgJobRevenue,
       marginPercent: forecastMarginPercent,
-      useAdSpendCorrelation: useAdSpendCorrelation,
-      manualJobsPerWeek: useAdSpendCorrelation ? undefined : manualJobsOverride
+      includeOverhead: includeOverhead
     });
-  }, [forecastWeeklyAdSpend, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, useAdSpendCorrelation, manualJobsOverride]);
+  }, [forecastJobsPerWeek, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, includeOverhead]);
 
-  // Calculate forecast totals
+  // Calculate forecast totals (use last week's cumulative values)
   const forecastTotals = useMemo(() => {
-    return forecastResults.reduce((acc, week) => ({
-      jobs: acc.jobs + week.jobs,
-      revenue: acc.revenue + week.revenue,
-      grossMargin: acc.grossMargin + week.grossMargin,
-      netMargin: acc.netMargin + week.netMargin,
-      adSpend: acc.adSpend + week.adSpend
-    }), { jobs: 0, revenue: 0, grossMargin: 0, netMargin: 0, adSpend: 0 });
+    const lastWeek = forecastResults[forecastResults.length - 1];
+    if (!lastWeek) return { jobs: 0, revenue: 0, grossMargin: 0, netProfit: 0, adSpend: 0, overhead: 0 };
+    return {
+      jobs: lastWeek.cumJobs,
+      revenue: lastWeek.cumRevenue,
+      grossMargin: lastWeek.cumGrossMargin,
+      netProfit: lastWeek.cumNetProfit,
+      adSpend: lastWeek.cumAdSpend,
+      overhead: lastWeek.cumOverhead
+    };
   }, [forecastResults]);
 
   // Load saved cash infusion selections from localStorage
@@ -441,8 +445,8 @@ export default function Home() {
             {/* Real Performance Reference */}
             <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-6">
               <h2 className="text-lg font-semibold text-blue-800 mb-2">Actual Performance Data (Nov-Dec 2025)</h2>
-              <p className="text-sm text-blue-600 mb-4">Based on real margin report data - 457 jobs over 44 days at ~$15k/week ad spend</p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+              <p className="text-sm text-blue-600 mb-4">Based on real margin report data - 457 jobs over 44 days</p>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
                 <div className="bg-white rounded-lg p-3 shadow-sm">
                   <p className="text-xs text-gray-500">Avg Jobs/Week</p>
                   <p className="text-xl font-bold text-gray-900">72.7</p>
@@ -460,43 +464,47 @@ export default function Home() {
                   <p className="text-xl font-bold text-red-600">~$15k</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-xs text-gray-500">Jobs per $1k Ads</p>
-                  <p className="text-xl font-bold text-purple-600">~4.8</p>
+                  <p className="text-xs text-gray-500">Weekly Overhead</p>
+                  <p className="text-xl font-bold text-orange-600">{formatCurrency(weeklyOverhead)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Cost per Job (Ads)</p>
+                  <p className="text-xl font-bold text-purple-600">~$206</p>
                 </div>
               </div>
             </div>
 
             {/* Interactive Forecast Controls */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-2">Ad Spend-Driven Forecast</h2>
-              <p className="text-sm text-gray-500 mb-6">Adjust weekly ad spend to see projected jobs, revenue, and profit based on real performance data</p>
+              <h2 className="text-lg font-semibold mb-2">Job-Driven Forecast</h2>
+              <p className="text-sm text-gray-500 mb-6">Set your target jobs per week - ad spend and other costs are calculated automatically</p>
 
-              {/* Primary Control: Weekly Ad Spend */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              {/* Primary Control: Jobs Per Week */}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-blue-800 mb-2">
-                      Weekly Ad Spend: <span className="text-2xl font-bold text-blue-600">{formatCurrency(forecastWeeklyAdSpend)}</span>
+                    <label className="block text-sm font-medium text-green-800 mb-2">
+                      Jobs Per Week: <span className="text-3xl font-bold text-green-600">{forecastJobsPerWeek}</span>
                     </label>
                     <input
                       type="range"
-                      min="5000"
-                      max="30000"
-                      step="500"
-                      value={forecastWeeklyAdSpend}
-                      onChange={(e) => setForecastWeeklyAdSpend(Number(e.target.value))}
-                      className="w-full h-3 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      min="40"
+                      max="120"
+                      step="1"
+                      value={forecastJobsPerWeek}
+                      onChange={(e) => setForecastJobsPerWeek(Number(e.target.value))}
+                      className="w-full h-3 bg-green-200 rounded-lg appearance-none cursor-pointer accent-green-600"
                     />
-                    <div className="flex justify-between text-xs text-blue-600 mt-1">
-                      <span>$5k (Conservative)</span>
-                      <span>$15k (Moderate)</span>
-                      <span>$30k (Aggressive)</span>
+                    <div className="flex justify-between text-xs text-green-600 mt-1">
+                      <span>40 (Slow)</span>
+                      <span>73 (Actual Avg)</span>
+                      <span>120 (Aggressive)</span>
                     </div>
                   </div>
                   <div className="text-center md:text-right bg-white rounded-lg p-4 shadow-sm">
-                    <p className="text-sm text-gray-500">Expected Jobs/Week</p>
-                    <p className="text-3xl font-bold text-green-600">{expectedJobsFromAdSpend}</p>
-                    <p className="text-xs text-gray-400">{formatCurrency(forecastWeeklyAdSpend / expectedJobsFromAdSpend)}/job</p>
+                    <p className="text-sm text-gray-500">Required Ad Spend</p>
+                    <p className="text-2xl font-bold text-red-600">{formatCurrency(expectedAdSpend)}/wk</p>
+                    <p className="text-xs text-gray-400">{formatCurrency(expectedAdSpend / forecastJobsPerWeek)}/job</p>
                   </div>
                 </div>
               </div>
@@ -540,7 +548,7 @@ export default function Home() {
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>45%</span>
-                    <span>55%</span>
+                    <span>57.8%</span>
                     <span>65%</span>
                   </div>
                 </div>
@@ -566,28 +574,20 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Manual Override Toggle */}
+                {/* Include Overhead Toggle */}
                 <div className="space-y-2">
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={!useAdSpendCorrelation}
-                      onChange={(e) => setUseAdSpendCorrelation(!e.target.checked)}
+                      checked={includeOverhead}
+                      onChange={(e) => setIncludeOverhead(e.target.checked)}
                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                     />
-                    <span className="text-sm font-medium text-gray-700">Manual Jobs Override</span>
+                    <span className="text-sm font-medium text-gray-700">Include Fixed Overhead</span>
                   </label>
-                  {!useAdSpendCorrelation && (
-                    <input
-                      type="number"
-                      min="30"
-                      max="150"
-                      value={manualJobsOverride}
-                      onChange={(e) => setManualJobsOverride(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      placeholder="Jobs/week"
-                    />
-                  )}
+                  <p className="text-xs text-gray-500">
+                    {includeOverhead ? `${formatCurrency(weeklyOverhead)}/week overhead included` : 'Overhead excluded from net profit'}
+                  </p>
                 </div>
               </div>
 
@@ -596,44 +596,41 @@ export default function Home() {
                 <span className="text-sm text-gray-500 mr-2">Presets:</span>
                 <button
                   onClick={() => {
-                    setForecastWeeklyAdSpend(10000);
-                    setForecastMarginPercent(50);
-                    setUseAdSpendCorrelation(true);
+                    setForecastJobsPerWeek(50);
+                    setForecastMarginPercent(55);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 hover:bg-red-200"
                 >
-                  Conservative ($10k/wk)
+                  Conservative (50 jobs/wk)
                 </button>
                 <button
                   onClick={() => {
-                    setForecastWeeklyAdSpend(15000);
+                    setForecastJobsPerWeek(73);
                     setForecastAvgJobRevenue(691);
                     setForecastMarginPercent(57.8);
-                    setUseAdSpendCorrelation(true);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
                 >
-                  Moderate ($15k/wk)
+                  Actual Avg (73 jobs/wk)
                 </button>
                 <button
                   onClick={() => {
-                    setForecastWeeklyAdSpend(20000);
-                    setForecastMarginPercent(52);
-                    setUseAdSpendCorrelation(true);
+                    setForecastJobsPerWeek(90);
+                    setForecastMarginPercent(55);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 hover:bg-green-200"
                 >
-                  Aggressive ($20k/wk)
+                  Growth (90 jobs/wk)
                 </button>
               </div>
             </div>
 
             {/* Forecast Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Jobs</h3>
                 <p className="text-2xl font-bold text-gray-900">{forecastTotals.jobs}</p>
-                <p className="text-xs text-gray-500">{Math.round(forecastTotals.jobs / forecastWeeks)}/week avg</p>
+                <p className="text-xs text-gray-500">{forecastJobsPerWeek}/week</p>
               </div>
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
@@ -643,73 +640,84 @@ export default function Home() {
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Gross Margin</h3>
                 <p className="text-2xl font-bold text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</p>
-                <p className="text-xs text-gray-500">{forecastTotals.revenue > 0 ? (forecastTotals.grossMargin / forecastTotals.revenue * 100).toFixed(1) : 0}% of revenue</p>
+                <p className="text-xs text-gray-500">{forecastMarginPercent.toFixed(1)}% of revenue</p>
               </div>
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Ad Spend</h3>
                 <p className="text-2xl font-bold text-red-600">{formatCurrency(forecastTotals.adSpend)}</p>
                 <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.adSpend / forecastWeeks)}/week</p>
               </div>
-              <div className={`rounded-lg shadow p-4 ${forecastTotals.netMargin >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                <h3 className="text-sm font-medium text-gray-500">Net Margin</h3>
-                <p className={`text-2xl font-bold ${forecastTotals.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(forecastTotals.netMargin)}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Overhead</h3>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(forecastTotals.overhead)}</p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.overhead / forecastWeeks)}/week</p>
+              </div>
+              <div className={`rounded-lg shadow p-4 ${forecastTotals.netProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <h3 className="text-sm font-medium text-gray-500">Net Profit</h3>
+                <p className={`text-2xl font-bold ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(forecastTotals.netProfit)}
                 </p>
-                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.netMargin / forecastWeeks)}/week</p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.netProfit / forecastWeeks)}/week</p>
               </div>
             </div>
 
-            {/* Weekly Forecast Table */}
+            {/* Weekly Forecast Table with Cumulative Totals */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b">
-                <h3 className="text-lg font-semibold">Weekly Breakdown</h3>
-                <p className="text-sm text-gray-500">Net Margin = Gross Margin - Ad Spend (matching 2025 Performance calculation)</p>
+                <h3 className="text-lg font-semibold">Weekly Breakdown with Cumulative Totals</h3>
+                <p className="text-sm text-gray-500">Net Profit = Gross Margin - Ad Spend - Fixed Overhead</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jobs</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Margin</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROAS</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost/Job</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jobs</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overhead</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Profit</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-blue-500 uppercase bg-blue-50">Cum. Jobs</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-blue-500 uppercase bg-blue-50">Cum. Revenue</th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-blue-500 uppercase bg-blue-50">Cum. Profit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {forecastResults.map((week) => (
                       <tr key={week.week} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">Week {week.week}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{week.jobs}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(week.revenue)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(week.grossMargin)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(week.adSpend)}</td>
-                        <td className={`px-4 py-3 text-sm text-right font-medium ${week.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(week.netMargin)}
+                        <td className="px-3 py-3 text-sm font-medium text-gray-900">Week {week.week}</td>
+                        <td className="px-3 py-3 text-sm text-right text-gray-900">{week.jobs}</td>
+                        <td className="px-3 py-3 text-sm text-right text-green-600">{formatCurrency(week.revenue)}</td>
+                        <td className="px-3 py-3 text-sm text-right text-blue-600">{formatCurrency(week.grossMargin)}</td>
+                        <td className="px-3 py-3 text-sm text-right text-red-600">{formatCurrency(week.adSpend)}</td>
+                        <td className="px-3 py-3 text-sm text-right text-orange-600">{formatCurrency(week.overhead)}</td>
+                        <td className={`px-3 py-3 text-sm text-right font-medium ${week.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(week.netProfit)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-purple-600">{week.roas.toFixed(1)}x</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600">{formatCurrency(week.costPerJob)}</td>
+                        <td className="px-3 py-3 text-sm text-right text-blue-700 bg-blue-50 font-medium">{week.cumJobs}</td>
+                        <td className="px-3 py-3 text-sm text-right text-blue-700 bg-blue-50">{formatCurrency(week.cumRevenue)}</td>
+                        <td className={`px-3 py-3 text-sm text-right bg-blue-50 font-medium ${week.cumNetProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {formatCurrency(week.cumNetProfit)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gray-50 font-semibold">
+                  <tfoot className="bg-gray-100 font-semibold">
                     <tr>
-                      <td className="px-4 py-3 text-sm text-gray-900">Total</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900">{forecastTotals.jobs}</td>
-                      <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(forecastTotals.revenue)}</td>
-                      <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</td>
-                      <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(forecastTotals.adSpend)}</td>
-                      <td className={`px-4 py-3 text-sm text-right ${forecastTotals.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(forecastTotals.netMargin)}
+                      <td className="px-3 py-3 text-sm text-gray-900">Totals</td>
+                      <td className="px-3 py-3 text-sm text-right text-gray-900">{forecastTotals.jobs}</td>
+                      <td className="px-3 py-3 text-sm text-right text-green-600">{formatCurrency(forecastTotals.revenue)}</td>
+                      <td className="px-3 py-3 text-sm text-right text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</td>
+                      <td className="px-3 py-3 text-sm text-right text-red-600">{formatCurrency(forecastTotals.adSpend)}</td>
+                      <td className="px-3 py-3 text-sm text-right text-orange-600">{formatCurrency(forecastTotals.overhead)}</td>
+                      <td className={`px-3 py-3 text-sm text-right ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(forecastTotals.netProfit)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-purple-600">
-                        {forecastTotals.adSpend > 0 ? (forecastTotals.revenue / forecastTotals.adSpend).toFixed(1) : 0}x
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">
-                        {forecastTotals.jobs > 0 ? formatCurrency(forecastTotals.adSpend / forecastTotals.jobs) : '-'}
+                      <td className="px-3 py-3 text-sm text-right text-blue-700 bg-blue-50">{forecastTotals.jobs}</td>
+                      <td className="px-3 py-3 text-sm text-right text-blue-700 bg-blue-50">{formatCurrency(forecastTotals.revenue)}</td>
+                      <td className={`px-3 py-3 text-sm text-right bg-blue-50 ${forecastTotals.netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        {formatCurrency(forecastTotals.netProfit)}
                       </td>
                     </tr>
                   </tfoot>
