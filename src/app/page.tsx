@@ -1,499 +1,273 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { useState, useMemo, useEffect } from 'react';
 import {
+  businessMetrics,
   staticOverhead,
   samplePayroll,
   sampleDebts,
-  sampleTaxes,
-  businessMetrics,
-  monthlyMarketingCosts
+  monthlyMarketingCosts,
+  weeklyPerformanceStats,
+  monthlyPerformance2025,
+  calculateForecast,
+  novDecPerformance
 } from '@/lib/data';
-import monthlyData2025 from '@/lib/monthly-data-2025.json';
-import cogsData2025 from '@/lib/cogs-data-2025.json';
-import rebatesData2025 from '@/lib/rebates-data-2025.json';
-import commissionsData2025 from '@/lib/commissions-data-2025.json';
+import {
+  bankTransactions,
+  BankTransaction,
+  getCategories,
+  getSources
+} from '@/lib/bankTransactions';
 
-// Types
-interface Payment {
-  name: string;
-  amount: number;
-  day: number;
-  category: string;
-  vendor?: string;
-  autoPay?: boolean;
-  status?: string;
-}
-
-interface COGSItem {
-  id: string;
-  date: string;
-  customer: string;
-  cost: number;
-}
-
-interface Commission {
-  id: string;
-  customer: string;
-  sales: number;
-  commission: number;
-  commissionPercent: number;
-}
-
-interface Tax {
-  type: string;
-  period: string;
-  gross: number;
-  taxable: number;
-  rate: number;
-  due: number;
-  dueDate: string;
-  status: string;
-}
-
-interface Rebate {
-  id: string;
-  date: string;
-  customer: string;
-  invoiceAmount: number;
-  rebateAmount: number;
-  rebatePercent: number;
-}
+type Tab = 'dashboard' | 'overhead' | 'payroll' | 'debt' | 'forecast' | '2025-performance' | 'bank-statements';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [overhead] = useState<Payment[]>(staticOverhead);
-  const [payroll] = useState(samplePayroll);
-  const [debts] = useState(sampleDebts);
-  const [cogs] = useState<COGSItem[]>(cogsData2025 as COGSItem[]);
-  const [commissions] = useState<Commission[]>(commissionsData2025 as Commission[]);
-  const [taxes] = useState<Tax[]>(sampleTaxes);
-  const [rebates] = useState<Rebate[]>(rebatesData2025 as Rebate[]);
-  const [cogsPage, setCogsPage] = useState(1);
-  const [rebatesPage, setRebatesPage] = useState(1);
-  const [commissionsPage, setCommissionsPage] = useState(1);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
-  // Handle URL parameters for deep linking to tabs
+  // Bank statements state
+  const [transactions, setTransactions] = useState<BankTransaction[]>(bankTransactions);
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [showOnlyCashInfusions, setShowOnlyCashInfusions] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState<'date' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Forecast tool state
+  const [forecastJobsPerWeek, setForecastJobsPerWeek] = useState(weeklyPerformanceStats.avgJobsPerWeek);
+  const [forecastWeeks, setForecastWeeks] = useState(8);
+  const [forecastAvgJobRevenue, setForecastAvgJobRevenue] = useState(weeklyPerformanceStats.avgRevenuePerJob);
+  const [forecastMarginPercent, setForecastMarginPercent] = useState(weeklyPerformanceStats.marginPercent);
+  const [forecastWeeklyAdSpend, setForecastWeeklyAdSpend] = useState(
+    Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0) / 12 / 4
+  );
+  const [forecastIncludePayroll, setForecastIncludePayroll] = useState(true);
+
+  // Calculate forecast based on inputs
+  const forecastResults = useMemo(() => {
+    const weeklyPayroll = forecastIncludePayroll ? 15520 : 0; // Weekly payroll from data
+    const weeklyOverhead = staticOverhead
+      .filter(item => item.category !== 'Payroll')
+      .reduce((sum, item) => sum + item.amount, 0) / 4 + weeklyPayroll;
+
+    return calculateForecast(forecastJobsPerWeek, forecastWeeks, {
+      avgJobRevenue: forecastAvgJobRevenue,
+      marginPercent: forecastMarginPercent,
+      weeklyOverhead: weeklyOverhead,
+      weeklyAdSpend: forecastWeeklyAdSpend,
+      variabilityFactor: 0
+    });
+  }, [forecastJobsPerWeek, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, forecastWeeklyAdSpend, forecastIncludePayroll]);
+
+  // Calculate forecast totals
+  const forecastTotals = useMemo(() => {
+    return forecastResults.reduce((acc, week) => ({
+      jobs: acc.jobs + week.jobs,
+      revenue: acc.revenue + week.revenue,
+      grossMargin: acc.grossMargin + week.grossMargin,
+      netProfit: acc.netProfit + week.netProfit
+    }), { jobs: 0, revenue: 0, grossMargin: 0, netProfit: 0 });
+  }, [forecastResults]);
+
+  // Load saved cash infusion selections from localStorage
   useEffect(() => {
-    // Read tab from URL on initial load
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get('tab');
-    if (tabParam) {
-      setActiveTab(tabParam);
+    const saved = localStorage.getItem('cashInfusionSelections');
+    if (saved) {
+      const selections = JSON.parse(saved) as Record<string, boolean>;
+      setTransactions(prev =>
+        prev.map(t => ({
+          ...t,
+          isCashInfusion: selections[t.id] ?? t.isCashInfusion
+        }))
+      );
     }
   }, []);
 
-  // Reset page when switching tabs
-  useEffect(() => {
-    if (activeTab === 'cogs') {
-      setCogsPage(1);
-    }
-    if (activeTab === 'rebates') {
-      setRebatesPage(1);
-    }
-    if (activeTab === 'commissions') {
-      setCommissionsPage(1);
-    }
-  }, [activeTab]);
-
-  // Update URL when tab changes
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    // Update URL without page reload
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', tab);
-    window.history.pushState({}, '', url);
-  };
-
-  // Calculate metrics from real data
-  const overheadTotal = overhead.reduce((sum, item) => sum + item.amount, 0);
-  const payrollTotal = payroll.reduce((sum, item) => sum + item.gross, 0);
-  const debtTotal = debts.reduce((sum, item) => sum + item.current, 0);
-  const cogsTotal = cogs.reduce((sum, item) => sum + item.cost, 0);
-  const commissionsTotal = commissions.reduce((sum, item) => sum + item.commission, 0);
-  const taxesTotal = taxes.reduce((sum, item) => sum + item.due, 0);
-  const rebatesTotal = rebates.reduce((sum, item) => sum + item.rebateAmount, 0);
-
-  // Calculate YTD metrics from monthly data (2025 only, excluding Dec 2024)
-  const monthlyData = (monthlyData2025 as any[]).filter(m => m.month.startsWith('2025'));
-  const ytdRevenue = monthlyData.reduce((sum, m) => sum + m.revenue, 0);
-  const ytdCosts = monthlyData.reduce((sum, m) => sum + m.costs, 0);
-  const ytdMargin = monthlyData.reduce((sum, m) => sum + m.margin, 0);
-  const ytdTransactions = monthlyData.reduce((sum, m) => sum + m.transactionCount, 0);
-  const avgMonthlyRevenue = ytdRevenue / monthlyData.length;
-  const avgMonthlyMargin = ytdMargin / monthlyData.length;
-  const avgTransactionValue = ytdRevenue / ytdTransactions;
-  const marginPercent = (ytdMargin / ytdRevenue) * 100;
-
-  // Calculate total monthly expenses
-  const monthlyOverhead = overheadTotal;
-  const monthlyPayroll = payrollTotal * 4; // Weekly * 4
-  const monthlyExpenses = monthlyOverhead + monthlyPayroll;
-
-  // Estimate current cash (avg monthly revenue - avg monthly expenses + buffer)
-  const estimatedMonthlyCashFlow = avgMonthlyRevenue - monthlyExpenses - (cogsTotal / 10); // COGS spread over months
-  const estimatedCurrentCash = estimatedMonthlyCashFlow * 1.5; // ~1.5 months buffer
-
-  // Calculate best month performance for optimistic forecast
-  const bestMonth = monthlyData.reduce((best, current) =>
-    current.revenue > best.revenue ? current : best
-  , monthlyData[0]);
-  const bestWeeklyRevenue = bestMonth.revenue / 4; // Assume 4 weeks per month
-  const bestWeeklyMargin = bestMonth.margin / 4;
-  const bestWeeklyCosts = bestMonth.costs / 4;
-  const bestWeeklyTransactions = Math.ceil(bestMonth.transactionCount / 4);
-
-  // Generate 8-week forecast based on best performance
-  function generateWeeklyForecast() {
-    const forecast = [];
-    let cumulativeCash = estimatedCurrentCash;
-    const weeklyOverhead = monthlyOverhead / 4;
-    const weeklyExpenses = weeklyOverhead + payrollTotal; // payroll is already weekly
-
-    for (let week = 1; week <= 8; week++) {
-      const startingBalance = cumulativeCash;
-      const expectedRevenue = bestWeeklyRevenue;
-      const expectedCosts = bestWeeklyCosts;
-      const expectedMargin = bestWeeklyMargin;
-      const totalExpenses = weeklyExpenses + expectedCosts;
-      const netCashFlow = expectedRevenue - totalExpenses;
-      const endingBalance = startingBalance + netCashFlow;
-
-      forecast.push({
-        week,
-        startingBalance,
-        expectedRevenue,
-        expectedCosts,
-        expectedMargin,
-        overhead: weeklyOverhead,
-        payroll: payrollTotal,
-        totalExpenses,
-        netCashFlow,
-        endingBalance,
-        transactions: bestWeeklyTransactions
-      });
-
-      cumulativeCash = endingBalance;
-    }
-
-    return forecast;
-  }
-
-  const weeklyForecast = generateWeeklyForecast();
-  
-  // Calculate daily obligations
-  const today = new Date();
-  const currentDay = today.getDate();
-  const todaysDue = overhead
-    .filter(item => item.day === currentDay)
-    .reduce((sum, item) => sum + item.amount, 0);
-  
-  // Calculate weekly obligations
-  const weeklyDue = calculateWeeklyDue();
-  
-  function calculateWeeklyDue() {
-    let total = 0;
-    for (let i = 0; i < 7; i++) {
-      const checkDate = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-      const checkDay = checkDate.getDate();
-      
-      // Add overhead for that day
-      total += overhead
-        .filter(item => item.day === checkDay)
-        .reduce((sum, item) => sum + item.amount, 0);
-      
-      // Add weekly payroll (paid weekly)
-      if (checkDay % 7 === 0) {
-        total += payrollTotal;
+  // Save cash infusion selections to localStorage
+  const saveCashInfusionSelections = (updatedTransactions: BankTransaction[]) => {
+    const selections: Record<string, boolean> = {};
+    updatedTransactions.forEach(t => {
+      if (t.isCashInfusion) {
+        selections[t.id] = true;
       }
-    }
-    return total;
-  }
-  
-  // Get upcoming payments for next 7 days
-  function getUpcomingPayments() {
-    const payments: any[] = [];
-    
-    for (let i = 0; i < 7; i++) {
-      const checkDate = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
-      const checkDay = checkDate.getDate();
-      
-      // Add overhead payments
-      overhead
-        .filter(item => item.day === checkDay)
-        .forEach(item => {
-          payments.push({
-            date: checkDate,
-            name: item.name,
-            amount: item.amount,
-            category: 'Overhead',
-            status: i === 0 ? 'Due Today' : `In ${i} days`
-          });
-        });
-      
-      // Add weekly payroll
-      if (checkDay % 7 === 0) {
-        payments.push({
-          date: checkDate,
-          name: `Weekly Payroll`,
-          amount: payrollTotal,
-          category: 'Payroll',
-          status: i === 0 ? 'Due Today' : `In ${i} days`
-        });
-      }
-    }
-    
-    return payments.sort((a, b) => a.date - b.date);
-  }
-  
-  // Handle file import
-  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    // In a real app, you would parse the Excel file here
-    alert('File import feature would parse: ' + file.name);
-  };
-  
-  // Export data to Excel
-  const exportToExcel = () => {
-    // In a real app, you would generate an Excel file here
-    alert('Export feature would generate Excel file with all data');
+    });
+    localStorage.setItem('cashInfusionSelections', JSON.stringify(selections));
   };
 
-  const upcomingPayments = getUpcomingPayments();
+  // Toggle cash infusion status
+  const toggleCashInfusion = (id: string) => {
+    setTransactions(prev => {
+      const updated = prev.map(t =>
+        t.id === id ? { ...t, isCashInfusion: !t.isCashInfusion } : t
+      );
+      saveCashInfusionSelections(updated);
+      return updated;
+    });
+  };
+
+  // Filtered and sorted transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = [...transactions];
+
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(t => t.source === sourceFilter);
+    }
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(t => t.category === categoryFilter);
+    }
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(t => t.type === typeFilter);
+    }
+    if (showOnlyCashInfusions) {
+      filtered = filtered.filter(t => t.isCashInfusion);
+    }
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(t =>
+        t.description.toLowerCase().includes(term)
+      );
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      if (sortField === 'date') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+      } else {
+        return sortDirection === 'asc'
+          ? a.amount - b.amount
+          : b.amount - a.amount;
+      }
+    });
+
+    return filtered;
+  }, [transactions, sourceFilter, categoryFilter, typeFilter, showOnlyCashInfusions, searchTerm, sortField, sortDirection]);
+
+  // Calculate totals
+  const totalCashInfusions = useMemo(() => {
+    return transactions
+      .filter(t => t.isCashInfusion)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  }, [transactions]);
+
+  const filteredTotals = useMemo(() => {
+    const deposits = filteredTransactions
+      .filter(t => t.type === 'deposit')
+      .reduce((sum, t) => sum + t.amount, 0);
+    const withdrawals = filteredTransactions
+      .filter(t => t.type === 'withdrawal')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    return { deposits, withdrawals, net: deposits - withdrawals };
+  }, [filteredTransactions]);
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'overhead', label: 'Overhead' },
+    { id: 'payroll', label: 'Payroll' },
+    { id: 'debt', label: 'Debt' },
+    { id: 'forecast', label: 'Forecast' },
+    { id: '2025-performance', label: '2025 Performance' },
+    { id: 'bank-statements', label: 'Bank Statements' },
+  ];
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              💰 Integrated Cash Flow Management System
-            </h1>
-            <div className="flex gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFileImport}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-              >
-                📁 Import Data
-              </button>
-              <button
-                onClick={exportToExcel}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-              >
-                📥 Export Excel
-              </button>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Auto Glass Cash Flow Management</h1>
+          <p className="text-sm text-gray-500">Extreme Auto Glass LLC - Financial Dashboard</p>
         </div>
       </header>
 
       {/* Navigation */}
-      <nav className="max-w-7xl mx-auto px-4 py-4">
-        <div className="bg-white p-2 rounded-xl shadow-sm">
-          <div className="flex flex-wrap gap-1">
-            {['dashboard', 'overhead', 'payroll', 'cogs', 'commissions', 'rebates', 'forecast', '2025-performance'].map((tab) => (
+      <nav className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex space-x-1 overflow-x-auto">
+            {tabs.map(tab => (
               <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all capitalize ${
-                  activeTab === tab
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-transparent text-gray-600 hover:bg-gray-100'
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                {tab === 'cogs' ? 'COGS' : tab === '2025-performance' ? '2025 Performance' : tab}
+                {tab.label}
               </button>
             ))}
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 pb-8">
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Top Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">YTD Revenue</div>
-                <div className="text-3xl font-bold text-blue-600">{formatCurrency(ytdRevenue)}</div>
-                <div className="text-sm text-gray-600 mt-2">{ytdTransactions.toLocaleString()} transactions</div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500">Avg Monthly Revenue</h3>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(businessMetrics.avgMonthlyRevenue)}</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">YTD Gross Margin</div>
-                <div className="text-3xl font-bold text-green-600">{formatCurrency(ytdMargin)}</div>
-                <div className="text-sm text-gray-600 mt-2">{marginPercent.toFixed(1)}% margin rate</div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500">Gross Margin</h3>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(businessMetrics.avgMonthlyGrossMargin)}</p>
+                <p className="text-sm text-gray-500">{businessMetrics.grossMarginPercent}%</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Avg Monthly Revenue</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(avgMonthlyRevenue)}</div>
-                <div className="text-sm text-gray-600 mt-2">{(ytdTransactions / monthlyData.length).toFixed(0)} transactions/mo</div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500">Monthly Overhead</h3>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(businessMetrics.monthlyOverhead)}</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Estimated Cash Position</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(estimatedCurrentCash)}</div>
-                <div className="text-sm text-gray-600 mt-2">Based on cash flow</div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-sm font-medium text-gray-500">Net Profit</h3>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrency(businessMetrics.netProfit)}</p>
+                <p className="text-sm text-gray-500">{businessMetrics.netMarginPercent}% margin</p>
               </div>
             </div>
 
-            {/* Payment Obligations Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Today's Obligations</div>
-                <div className="text-2xl font-bold text-red-600">{formatCurrency(todaysDue)}</div>
-                <div className="text-sm text-red-600 mt-2">{todaysDue > 0 ? 'Payments due' : 'No payments today'}</div>
-              </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Week Total Due</div>
-                <div className="text-2xl font-bold text-gray-900">{formatCurrency(weeklyDue)}</div>
-                <div className="text-sm text-gray-600 mt-2">{upcomingPayments.length} payments</div>
-              </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Monthly Expenses</div>
-                <div className="text-2xl font-bold text-gray-900">{formatCurrency(monthlyExpenses)}</div>
-                <div className="text-sm text-gray-600 mt-2">Overhead + Payroll</div>
-              </div>
-            </div>
-
-            {/* Business Performance Summary */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Business Performance (YTD 2025)</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Total Revenue</div>
-                  <div className="text-xl font-bold text-blue-600">{formatCurrency(ytdRevenue)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{ytdTransactions.toLocaleString()} trans.</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Total COGS</div>
-                  <div className="text-xl font-bold text-red-600">{formatCurrency(ytdCosts)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{cogs.length.toLocaleString()} items</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Gross Margin</div>
-                  <div className="text-xl font-bold text-green-600">{formatCurrency(ytdMargin)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{marginPercent.toFixed(1)}% rate</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Avg Ticket</div>
-                  <div className="text-xl font-bold text-purple-600">{formatCurrency(avgTransactionValue)}</div>
-                  <div className="text-xs text-gray-500 mt-1">per transaction</div>
-                </div>
-              </div>
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">💰 Expenses Breakdown</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Monthly Overhead</div>
-                  <div className="text-lg font-bold">{formatCurrency(monthlyOverhead)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{overhead.length} items</div>
-                </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Weekly Payroll</div>
-                  <div className="text-lg font-bold">{formatCurrency(payrollTotal)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{payroll.length} employees</div>
-                </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Commissions</div>
-                  <div className="text-lg font-bold">{formatCurrency(commissionsTotal)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{commissions.length.toLocaleString()} paid</div>
-                </div>
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">TPT Taxes Due</div>
-                  <div className="text-lg font-bold">{formatCurrency(taxesTotal)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{taxes.length} items</div>
-                </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-xs text-gray-500 uppercase mb-1">Rebates Expected</div>
-                  <div className="text-lg font-bold text-green-600">{formatCurrency(rebatesTotal)}</div>
-                  <div className="text-xs text-gray-500 mt-1">{rebates.length.toLocaleString()} pending</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Alerts & Insights */}
-            <div className="space-y-3">
-              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
-                <div className="flex">
-                  <div className="ml-3">
-                    <p className="text-sm text-blue-700">
-                      <strong>💡 Business Health:</strong> YTD margin of {marginPercent.toFixed(1)}% with average monthly revenue of {formatCurrency(avgMonthlyRevenue)}. Net cash flow per month: {formatCurrency(estimatedMonthlyCashFlow)}.
-                    </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Transaction Metrics</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Avg Transaction Size</span>
+                    <span className="font-medium">{formatCurrency(businessMetrics.avgTransactionSize)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Monthly Transactions</span>
+                    <span className="font-medium">{businessMetrics.monthlyTransactions}</span>
                   </div>
                 </div>
               </div>
-
-              {estimatedMonthlyCashFlow > 0 ? (
-                <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-lg">
-                  <div className="flex">
-                    <div className="ml-3">
-                      <p className="text-sm text-green-700">
-                        <strong>✅ Positive Cash Flow:</strong> Generating approximately {formatCurrency(estimatedMonthlyCashFlow)}/month after all expenses. Rebates of {formatCurrency(rebatesTotal)} expected to boost cash position.
-                      </p>
-                    </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Cash Infusions (Owner)</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Marked</span>
+                    <span className="font-medium text-purple-600">{formatCurrency(totalCashInfusions)}</span>
                   </div>
+                  <p className="text-xs text-gray-500">Go to Bank Statements tab to mark cash infusion payments</p>
                 </div>
-              ) : (
-                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
-                  <div className="flex">
-                    <div className="ml-3">
-                      <p className="text-sm text-red-700">
-                        <strong>🚨 Cash Flow Warning:</strong> Monthly expenses ({formatCurrency(monthlyExpenses)}) exceed average revenue. Review overhead and payroll costs.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
-                <div className="flex">
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      <strong>⚠️ Outstanding Items:</strong> {cogs.length.toLocaleString()} COGS items ({formatCurrency(cogsTotal)}), {commissions.length.toLocaleString()} commissions ({formatCurrency(commissionsTotal)}), and {rebates.length.toLocaleString()} rebates ({formatCurrency(rebatesTotal)}) to reconcile.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Upcoming Payments */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📅 Upcoming Payments (Next 7 Days)</h2>
-              <div className="space-y-2">
-                {upcomingPayments.slice(0, 10).map((payment, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <div className="flex-1">
-                      <div className="font-medium">{payment.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {payment.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} • {payment.category}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-red-600">{formatCurrency(payment.amount)}</div>
-                      <div className={`text-xs ${payment.status === 'Due Today' ? 'text-red-600' : 'text-gray-500'}`}>
-                        {payment.status}
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
@@ -501,376 +275,34 @@ export default function Home() {
 
         {/* Overhead Tab */}
         {activeTab === 'overhead' && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <div className="px-6 py-4 border-b flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold">📋 Fixed Monthly Overhead</h2>
-                <p className="text-gray-600">Total: <strong>{formatCurrency(overheadTotal)}</strong></p>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Auto-Pay</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {overhead.map((item, index) => {
-                    const isPast = item.day < currentDay;
-                    const isToday = item.day === currentDay;
-                    return (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm">{item.day}</td>
-                        <td className="px-6 py-4 text-sm font-medium">{item.name}</td>
-                        <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.amount)}</td>
-                        <td className="px-6 py-4 text-sm">{item.category}</td>
-                        <td className="px-6 py-4 text-sm">{item.vendor}</td>
-                        <td className="px-6 py-4 text-sm">{item.autoPay ? '✓ Yes' : 'No'}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            isPast ? 'bg-green-100 text-green-800' : 
-                            isToday ? 'bg-red-100 text-red-800' : 
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {isPast ? 'Paid' : isToday ? 'Due Today' : 'Pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Payroll Tab */}
-        {activeTab === 'payroll' && (
-          <div className="bg-white rounded-xl shadow-sm">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">👥 Payroll Schedule</h2>
-              <p className="text-gray-600">Total Weekly Payroll: <strong>{formatCurrency(payrollTotal)}</strong> | Total Monthly: <strong>{formatCurrency(payrollTotal * 4)}</strong></p>
+              <h2 className="text-lg font-semibold">Monthly Fixed Overhead</h2>
+              <p className="text-sm text-gray-500">Total: {formatCurrency(staticOverhead.reduce((sum, item) => sum + item.amount, 0))}</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Pay Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Day</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Auto Pay</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {payroll.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{item.employee}</td>
-                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.gross)}</td>
-                      <td className="px-6 py-4 text-sm text-center">{item.type}</td>
-                      <td className="px-6 py-4 text-sm text-center">{item.payDate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td className="px-6 py-4 text-sm font-bold">Total ({payroll.length} employees)</td>
-                    <td className="px-6 py-4 text-sm font-bold text-right">{formatCurrency(payrollTotal)}</td>
-                    <td className="px-6 py-4"></td>
-                    <td className="px-6 py-4"></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* COGS Tab */}
-        {activeTab === 'cogs' && (() => {
-          const itemsPerPage = 100;
-          const totalPages = Math.ceil(cogs.length / itemsPerPage);
-          const startIndex = (cogsPage - 1) * itemsPerPage;
-          const endIndex = startIndex + itemsPerPage;
-          const currentItems = cogs.slice(startIndex, endIndex);
-
-          // Generate page numbers to show
-          const getPageNumbers = () => {
-            const pages = [];
-            const maxPagesToShow = 7;
-
-            if (totalPages <= maxPagesToShow) {
-              for (let i = 1; i <= totalPages; i++) {
-                pages.push(i);
-              }
-            } else {
-              if (cogsPage <= 4) {
-                for (let i = 1; i <= 5; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-              } else if (cogsPage >= totalPages - 3) {
-                pages.push(1);
-                pages.push('...');
-                for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
-              } else {
-                pages.push(1);
-                pages.push('...');
-                for (let i = cogsPage - 1; i <= cogsPage + 1; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-              }
-            }
-            return pages;
-          };
-
-          return (
-            <div className="bg-white rounded-xl shadow-sm">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-xl font-semibold">📦 Cost of Goods Sold (2025)</h2>
-                <div className="flex justify-between items-center mt-2">
-                  <p className="text-gray-600">
-                    Total COGS: <strong>{formatCurrency(cogsTotal)}</strong> |
-                    Total TPT Taxes (7.9%): <strong>{formatCurrency(cogsTotal * 0.079)}</strong> |
-                    Grand Total: <strong>{formatCurrency(cogsTotal * 1.079)}</strong> |
-                    ({cogs.length.toLocaleString()} transactions)
-                  </p>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">TPT Taxes (7.9%)</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {currentItems.map((item, index) => {
-                      const tptTax = item.cost * 0.079;
-                      const total = item.cost + tptTax;
-                      return (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm">{item.date}</td>
-                          <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
-                          <td className="px-6 py-4 text-sm">{item.customer}</td>
-                          <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.cost)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-orange-600">{formatCurrency(tptTax)}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-right text-blue-600">{formatCurrency(total)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Controls */}
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Showing {startIndex + 1}-{Math.min(endIndex, cogs.length)} of {cogs.length.toLocaleString()} transactions
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCogsPage(prev => Math.max(1, prev - 1))}
-                    disabled={cogsPage === 1}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      cogsPage === 1
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                    }`}
-                  >
-                    Previous
-                  </button>
-
-                  {getPageNumbers().map((page, idx) => (
-                    page === '...' ? (
-                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">...</span>
-                    ) : (
-                      <button
-                        key={page}
-                        onClick={() => setCogsPage(page as number)}
-                        className={`px-3 py-1 rounded text-sm font-medium ${
-                          cogsPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )
-                  ))}
-
-                  <button
-                    onClick={() => setCogsPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={cogsPage === totalPages}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      cogsPage === totalPages
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                    }`}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Commissions Tab */}
-        {activeTab === 'commissions' && (() => {
-          const itemsPerPage = 100;
-          const totalPages = Math.ceil(commissions.length / itemsPerPage);
-          const startIndex = (commissionsPage - 1) * itemsPerPage;
-          const endIndex = startIndex + itemsPerPage;
-          const currentCommissions = commissions.slice(startIndex, endIndex);
-
-          // Smart page numbers (show first, last, and pages around current)
-          const getPageNumbers = () => {
-            const pages: (number | string)[] = [];
-            if (totalPages <= 7) {
-              return Array.from({ length: totalPages }, (_, i) => i + 1);
-            }
-
-            pages.push(1);
-
-            if (commissionsPage > 3) {
-              pages.push('...');
-            }
-
-            for (let i = Math.max(2, commissionsPage - 1); i <= Math.min(totalPages - 1, commissionsPage + 1); i++) {
-              pages.push(i);
-            }
-
-            if (commissionsPage < totalPages - 2) {
-              pages.push('...');
-            }
-
-            if (totalPages > 1) {
-              pages.push(totalPages);
-            }
-
-            return pages;
-          };
-
-          return (
-            <div className="bg-white rounded-xl shadow-sm">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-xl font-semibold">💵 Sales Commissions</h2>
-                <p className="text-gray-600">Total: <strong>{formatCurrency(commissionsTotal)}</strong> ({commissions.length.toLocaleString()} transactions)</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sales</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission %</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {currentCommissions.map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-medium">{item.id}</td>
-                        <td className="px-6 py-4 text-sm">{item.customer}</td>
-                        <td className="px-6 py-4 text-sm">{formatCurrency(item.sales)}</td>
-                        <td className="px-6 py-4 text-sm">{item.commissionPercent.toFixed(2)}%</td>
-                        <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.commission)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="px-6 py-4 border-t flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    Showing {startIndex + 1}-{Math.min(endIndex, commissions.length)} of {commissions.length.toLocaleString()} transactions
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setCommissionsPage(p => Math.max(1, p - 1))}
-                      disabled={commissionsPage === 1}
-                      className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    {getPageNumbers().map((page, idx) => (
-                      page === '...' ? (
-                        <span key={idx} className="px-4 py-2 text-sm">...</span>
-                      ) : (
-                        <button
-                          key={idx}
-                          onClick={() => setCommissionsPage(page as number)}
-                          className={`px-4 py-2 text-sm border rounded-lg ${
-                            commissionsPage === page
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      )
-                    ))}
-                    <button
-                      onClick={() => setCommissionsPage(p => Math.min(totalPages, p + 1))}
-                      disabled={commissionsPage === totalPages}
-                      className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Taxes Tab */}
-        {activeTab === 'taxes' && (
-          <div className="bg-white rounded-xl shadow-sm">
-            <div className="px-6 py-4 border-b">
-              <h2 className="text-xl font-semibold">🏛️ TPT Taxes</h2>
-              <p className="text-gray-600">Total Due: <strong>{formatCurrency(taxesTotal)}</strong></p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gross Sales</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxable Sales</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rate</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Due</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {taxes.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium">{item.type}</td>
-                      <td className="px-6 py-4 text-sm">{item.period}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.gross)}</td>
-                      <td className="px-6 py-4 text-sm">{formatCurrency(item.taxable)}</td>
-                      <td className="px-6 py-4 text-sm">{item.rate}%</td>
-                      <td className="px-6 py-4 text-sm font-bold">{formatCurrency(item.due)}</td>
-                      <td className="px-6 py-4 text-sm">{item.dueDate}</td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                          {item.status}
+                  {staticOverhead.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.category}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.vendor}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.day}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">{formatCurrency(item.amount)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${item.autoPay ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {item.autoPay ? 'Yes' : 'No'}
                         </span>
                       </td>
                     </tr>
@@ -881,265 +313,340 @@ export default function Home() {
           </div>
         )}
 
-        {/* Rebates Tab */}
-        {activeTab === 'rebates' && (() => {
-          const itemsPerPage = 100;
-          const totalPages = Math.ceil(rebates.length / itemsPerPage);
-          const startIndex = (rebatesPage - 1) * itemsPerPage;
-          const endIndex = startIndex + itemsPerPage;
-          const currentItems = rebates.slice(startIndex, endIndex);
-
-          // Generate page numbers to show
-          const getPageNumbers = () => {
-            const pages = [];
-            const maxPagesToShow = 7;
-
-            if (totalPages <= maxPagesToShow) {
-              for (let i = 1; i <= totalPages; i++) {
-                pages.push(i);
-              }
-            } else {
-              if (rebatesPage <= 4) {
-                for (let i = 1; i <= 5; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-              } else if (rebatesPage >= totalPages - 3) {
-                pages.push(1);
-                pages.push('...');
-                for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
-              } else {
-                pages.push(1);
-                pages.push('...');
-                for (let i = rebatesPage - 1; i <= rebatesPage + 1; i++) pages.push(i);
-                pages.push('...');
-                pages.push(totalPages);
-              }
-            }
-            return pages;
-          };
-
-          return (
-            <div className="bg-white rounded-xl shadow-sm">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-xl font-semibold">💸 Customer Rebates (2025)</h2>
-                <p className="text-gray-600">
-                  Total Rebates: <strong className="text-green-600">{formatCurrency(rebatesTotal)}</strong> ({rebates.length.toLocaleString()} transactions)
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Invoice Amount</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rebate %</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rebate Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {currentItems.map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm">{item.date}</td>
-                        <td className="px-6 py-4 text-sm">{item.customer}</td>
-                        <td className="px-6 py-4 text-sm text-right">{formatCurrency(item.invoiceAmount)}</td>
-                        <td className="px-6 py-4 text-sm text-right">{item.rebatePercent.toFixed(1)}%</td>
-                        <td className="px-6 py-4 text-sm font-bold text-right text-green-600">{formatCurrency(item.rebateAmount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination Controls */}
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Showing {startIndex + 1}-{Math.min(endIndex, rebates.length)} of {rebates.length.toLocaleString()} transactions
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setRebatesPage(prev => Math.max(1, prev - 1))}
-                    disabled={rebatesPage === 1}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      rebatesPage === 1
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                    }`}
-                  >
-                    Previous
-                  </button>
-
-                  {getPageNumbers().map((page, idx) => (
-                    page === '...' ? (
-                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">...</span>
-                    ) : (
-                      <button
-                        key={page}
-                        onClick={() => setRebatesPage(page as number)}
-                        className={`px-3 py-1 rounded text-sm font-medium ${
-                          rebatesPage === page
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )
-                  ))}
-
-                  <button
-                    onClick={() => setRebatesPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={rebatesPage === totalPages}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      rebatesPage === totalPages
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                    }`}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+        {/* Payroll Tab */}
+        {activeTab === 'payroll' && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold">Weekly Payroll</h2>
+              <p className="text-sm text-gray-500">Total Weekly: {formatCurrency(samplePayroll.reduce((sum, emp) => sum + emp.gross, 0))}</p>
             </div>
-          );
-        })()}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Frequency</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {samplePayroll.map((emp, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{emp.employee}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{emp.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{emp.payDate}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">{formatCurrency(emp.gross)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Debt Tab */}
+        {activeTab === 'debt' && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold">Outstanding Debt</h2>
+              <p className="text-sm text-gray-500">Total Balance: {formatCurrency(sampleDebts.reduce((sum, d) => sum + d.current, 0))}</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creditor</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Original</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Interest</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Min Payment</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Due Day</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {sampleDebts.map((debt, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{debt.creditor}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{formatCurrency(debt.original)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">{formatCurrency(debt.current)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">{debt.interest}%</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">{formatCurrency(debt.minimum)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">{debt.dueDay}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">{formatCurrency(debt.paid)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Forecast Tab */}
         {activeTab === 'forecast' && (
           <div className="space-y-6">
-            {/* Forecast Summary */}
+            {/* Interactive Forecast Controls */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-2">Interactive Job-Based Forecast</h2>
+              <p className="text-sm text-gray-500 mb-6">Adjust inputs to forecast revenue and profit based on real Nov-Dec 2025 performance data</p>
+
+              {/* Key Performance Reference */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="text-sm font-semibold text-blue-800 mb-2">Reference: Nov 1 - Dec 14, 2025 Performance</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-600">Jobs/Week:</span>
+                    <span className="ml-2 font-medium">{novDecPerformance.jobsPerWeek.toFixed(1)}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Avg Revenue/Job:</span>
+                    <span className="ml-2 font-medium">{formatCurrency(novDecPerformance.avgJobRevenue)}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Margin %:</span>
+                    <span className="ml-2 font-medium">{novDecPerformance.marginPercent}%</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-600">Avg Margin/Job:</span>
+                    <span className="ml-2 font-medium">{formatCurrency(novDecPerformance.avgJobMargin)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Input Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                {/* Jobs Per Week */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Jobs Per Week: <span className="text-blue-600 font-bold">{forecastJobsPerWeek}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="30"
+                    max="120"
+                    step="1"
+                    value={forecastJobsPerWeek}
+                    onChange={(e) => setForecastJobsPerWeek(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>30 (Low)</span>
+                    <span>73 (Avg)</span>
+                    <span>120 (High)</span>
+                  </div>
+                </div>
+
+                {/* Avg Revenue Per Job */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Avg Revenue/Job: <span className="text-blue-600 font-bold">{formatCurrency(forecastAvgJobRevenue)}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="500"
+                    max="900"
+                    step="10"
+                    value={forecastAvgJobRevenue}
+                    onChange={(e) => setForecastAvgJobRevenue(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>$500</span>
+                    <span>$691 (Actual)</span>
+                    <span>$900</span>
+                  </div>
+                </div>
+
+                {/* Margin Percent */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Margin %: <span className="text-blue-600 font-bold">{forecastMarginPercent.toFixed(1)}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="45"
+                    max="70"
+                    step="0.5"
+                    value={forecastMarginPercent}
+                    onChange={(e) => setForecastMarginPercent(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>45%</span>
+                    <span>57.8% (Actual)</span>
+                    <span>70%</span>
+                  </div>
+                </div>
+
+                {/* Weekly Ad Spend */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Weekly Ad Spend: <span className="text-red-600 font-bold">{formatCurrency(forecastWeeklyAdSpend)}</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="2000"
+                    max="30000"
+                    step="500"
+                    value={forecastWeeklyAdSpend}
+                    onChange={(e) => setForecastWeeklyAdSpend(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>$2k</span>
+                    <span>$10.8k (Avg)</span>
+                    <span>$30k</span>
+                  </div>
+                </div>
+
+                {/* Forecast Weeks */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Forecast Period: <span className="text-blue-600 font-bold">{forecastWeeks} weeks</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="4"
+                    max="16"
+                    step="1"
+                    value={forecastWeeks}
+                    onChange={(e) => setForecastWeeks(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>4 wks</span>
+                    <span>8 wks</span>
+                    <span>16 wks</span>
+                  </div>
+                </div>
+
+                {/* Include Payroll Toggle */}
+                <div className="flex items-center space-x-3 pt-6">
+                  <input
+                    type="checkbox"
+                    id="includePayroll"
+                    checked={forecastIncludePayroll}
+                    onChange={(e) => setForecastIncludePayroll(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="includePayroll" className="text-sm font-medium text-gray-700">
+                    Include Payroll in Overhead
+                  </label>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                <span className="text-sm text-gray-500 mr-2">Quick Presets:</span>
+                <button
+                  onClick={() => {
+                    setForecastJobsPerWeek(55);
+                    setForecastMarginPercent(52);
+                  }}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 hover:bg-red-200"
+                >
+                  Pessimistic
+                </button>
+                <button
+                  onClick={() => {
+                    setForecastJobsPerWeek(73);
+                    setForecastAvgJobRevenue(691);
+                    setForecastMarginPercent(57.8);
+                  }}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                >
+                  Actual (Nov-Dec)
+                </button>
+                <button
+                  onClick={() => {
+                    setForecastJobsPerWeek(90);
+                    setForecastMarginPercent(60);
+                  }}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 hover:bg-green-200"
+                >
+                  Optimistic
+                </button>
+              </div>
+            </div>
+
+            {/* Forecast Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Best Month Performance</div>
-                <div className="text-2xl font-bold text-blue-600">{formatCurrency(bestMonth.revenue)}</div>
-                <div className="text-sm text-gray-600 mt-2">{bestMonth.monthName}</div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Jobs</h3>
+                <p className="text-2xl font-bold text-gray-900">{forecastTotals.jobs}</p>
+                <p className="text-xs text-gray-500">{forecastWeeks} week forecast</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Weekly Revenue (Best)</div>
-                <div className="text-2xl font-bold text-green-600">{formatCurrency(bestWeeklyRevenue)}</div>
-                <div className="text-sm text-gray-600 mt-2">~{bestWeeklyTransactions} transactions/week</div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(forecastTotals.revenue)}</p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.revenue / forecastWeeks)}/week</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">8-Week Projected Revenue</div>
-                <div className="text-2xl font-bold text-purple-600">{formatCurrency(bestWeeklyRevenue * 8)}</div>
-                <div className="text-sm text-gray-600 mt-2">Optimistic scenario</div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Gross Margin</h3>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</p>
+                <p className="text-xs text-gray-500">{(forecastTotals.grossMargin / forecastTotals.revenue * 100).toFixed(1)}% of revenue</p>
               </div>
-
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-500 uppercase mb-2">Projected Cash Position</div>
-                <div className="text-2xl font-bold text-gray-900">{formatCurrency(weeklyForecast[7].endingBalance)}</div>
-                <div className="text-sm text-gray-600 mt-2">After 8 weeks</div>
+              <div className={`rounded-lg shadow p-4 ${forecastTotals.netProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <h3 className="text-sm font-medium text-gray-500">Net Profit</h3>
+                <p className={`text-2xl font-bold ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(forecastTotals.netProfit)}
+                </p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.netProfit / forecastWeeks)}/week</p>
               </div>
             </div>
 
             {/* Weekly Forecast Table */}
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b">
-                <h2 className="text-xl font-semibold">📈 8-Week Cash Flow Forecast</h2>
-                <p className="text-sm text-gray-600 mt-1">Based on best month performance ({bestMonth.monthName}) - Optimistic projection</p>
+                <h3 className="text-lg font-semibold">Weekly Breakdown</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Starting Balance</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">COGS</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overhead</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Payroll</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Cash Flow</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ending Balance</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Week</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jobs</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overhead</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Profit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {weeklyForecast.map((week) => {
-                      const today = new Date();
-                      const weekStartDate = new Date(today.getTime() + (week.week - 1) * 7 * 24 * 60 * 60 * 1000);
-                      const weekEndDate = new Date(weekStartDate.getTime() + 6 * 24 * 60 * 60 * 1000);
-                      const dateRange = `${weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-
-                      return (
-                        <tr key={week.week} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-medium">
-                            <div>Week {week.week}</div>
-                            <div className="text-xs text-gray-500">{dateRange}</div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-right">{formatCurrency(week.startingBalance)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-blue-600 font-medium">{formatCurrency(week.expectedRevenue)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-red-600">-{formatCurrency(week.expectedCosts)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-green-600 font-medium">{formatCurrency(week.expectedMargin)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-orange-600">-{formatCurrency(week.overhead)}</td>
-                          <td className="px-6 py-4 text-sm text-right text-purple-600">-{formatCurrency(week.payroll)}</td>
-                          <td className="px-6 py-4 text-sm text-right font-bold">
-                            <span className={week.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}>
-                              {week.netCashFlow >= 0 ? '+' : ''}{formatCurrency(week.netCashFlow)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-right font-bold">{formatCurrency(week.endingBalance)}</td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              week.endingBalance < 50000 ? 'bg-yellow-100 text-yellow-800' :
-                              week.endingBalance < 100000 ? 'bg-blue-100 text-blue-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {week.endingBalance < 50000 ? 'Caution' : week.endingBalance < 100000 ? 'Good' : 'Excellent'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {forecastResults.map((week) => (
+                      <tr key={week.week} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">Week {week.week}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900">{week.jobs}</td>
+                        <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(week.revenue)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(week.grossMargin)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(week.overhead)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(week.adSpend)}</td>
+                        <td className={`px-4 py-3 text-sm text-right font-medium ${week.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(week.netProfit)}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
-                  <tfoot className="bg-gray-50 font-bold">
+                  <tfoot className="bg-gray-50 font-semibold">
                     <tr>
-                      <td className="px-6 py-4 text-sm">8-Week Totals</td>
-                      <td className="px-6 py-4 text-sm text-right">-</td>
-                      <td className="px-6 py-4 text-sm text-right text-blue-600">
-                        {formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedRevenue, 0))}
+                      <td className="px-4 py-3 text-sm text-gray-900">Total</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">{forecastTotals.jobs}</td>
+                      <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(forecastTotals.revenue)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-red-600">
+                        {formatCurrency(forecastResults.reduce((sum, w) => sum + w.overhead, 0))}
                       </td>
-                      <td className="px-6 py-4 text-sm text-right text-red-600">
-                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedCosts, 0))}
+                      <td className="px-4 py-3 text-sm text-right text-red-600">
+                        {formatCurrency(forecastResults.reduce((sum, w) => sum + w.adSpend, 0))}
                       </td>
-                      <td className="px-6 py-4 text-sm text-right text-green-600">
-                        {formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.expectedMargin, 0))}
+                      <td className={`px-4 py-3 text-sm text-right ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(forecastTotals.netProfit)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-right text-orange-600">
-                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.overhead, 0))}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-purple-600">
-                        -{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.payroll, 0))}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right text-green-600">
-                        +{formatCurrency(weeklyForecast.reduce((sum, w) => sum + w.netCashFlow, 0))}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-right">-</td>
-                      <td className="px-6 py-4 text-center">-</td>
                     </tr>
                   </tfoot>
                 </table>
-              </div>
-            </div>
-
-            {/* Forecast Assumptions */}
-            <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-semibold text-blue-800">Forecast Assumptions</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>Based on best month: {bestMonth.monthName} ({formatCurrency(bestMonth.revenue)} revenue, {bestMonth.transactionCount} transactions)</li>
-                      <li>Weekly revenue: {formatCurrency(bestWeeklyRevenue)} (~{bestWeeklyTransactions} transactions)</li>
-                      <li>Weekly expenses: {formatCurrency(payrollTotal)} payroll + {formatCurrency(monthlyOverhead / 4)} overhead</li>
-                      <li>COGS: {((bestWeeklyCosts / bestWeeklyRevenue) * 100).toFixed(1)}% of revenue</li>
-                      <li>Gross margin: {((bestWeeklyMargin / bestWeeklyRevenue) * 100).toFixed(1)}%</li>
-                      <li>This is an optimistic projection assuming consistent best-case performance</li>
-                    </ul>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1148,315 +655,354 @@ export default function Home() {
         {/* 2025 Performance Tab */}
         {activeTab === '2025-performance' && (
           <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total Revenue</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(monthlyData2025
-                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .reduce((sum, m) => sum + m.revenue, 0))}
-                </div>
+            {/* YTD Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">YTD Jobs</h3>
+                <p className="text-2xl font-bold text-gray-900">
+                  {Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.jobs, 0).toLocaleString()}
+                </p>
               </div>
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total COGS</div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(monthlyData2025
-                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .reduce((sum, m) => sum + m.costs, 0))}
-                </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">YTD Revenue</h3>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.revenue, 0))}
+                </p>
               </div>
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Total Expenses</div>
-                <div className="text-2xl font-bold text-red-600">
-                  {(() => {
-                    // Base overhead (includes payroll) + marketing
-                    const baseOverhead = 67567.14; // Already includes $40K/mo payroll
-                    const totalMarketingCosts = monthlyData2025
-                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                      .reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    return formatCurrency((baseOverhead * 10) + totalMarketingCosts);
-                  })()}
-                </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">YTD Gross Margin</h3>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.grossMargin, 0))}
+                </p>
               </div>
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Net Profit</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {(() => {
-                    const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
-                    const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                    const baseOverhead = 67567.14; // Already includes payroll
-                    const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    const totalExpenses = (baseOverhead * 10) + totalMarketingCosts;
-                    return formatCurrency(totalMargin - totalExpenses);
-                  })()}
-                </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">YTD Net Margin (After Ad Spend)</h3>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
+                </p>
               </div>
-              <div className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="text-sm text-gray-600 mb-1">Net Margin %</div>
-                <div className="text-2xl font-bold text-purple-600">
-                  {(() => {
-                    const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
-                    const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
-                    const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                    const baseOverhead = 67567.14; // Already includes payroll
-                    const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                    const totalExpenses = (baseOverhead * 10) + totalMarketingCosts;
-                    const netProfit = totalMargin - totalExpenses;
-                    return ((netProfit / totalRevenue) * 100).toFixed(2);
-                  })()}%
+            </div>
+
+            {/* Nov-Dec 2025 Highlight */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-blue-800 mb-4">Nov 1 - Dec 14, 2025 Actual Performance</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div>
+                  <p className="text-sm text-blue-600">Total Jobs</p>
+                  <p className="text-xl font-bold text-gray-900">{novDecPerformance.totalJobs}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Total Revenue</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(novDecPerformance.totalRevenue)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Total Margin</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(novDecPerformance.totalMargin)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Margin %</p>
+                  <p className="text-xl font-bold text-gray-900">{novDecPerformance.marginPercent}%</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Avg Revenue/Job</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(novDecPerformance.avgJobRevenue)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-600">Avg Margin/Job</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(novDecPerformance.avgJobMargin)}</p>
                 </div>
               </div>
             </div>
 
-            {/* Consolidated Performance Chart */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📊 Monthly Performance Overview (Jan-Oct 2025)</h2>
-
-              {/* Legend */}
-              <div className="flex flex-wrap gap-4 mb-6 pb-4 border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                  <span className="text-sm text-gray-700">Revenue</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-orange-500 rounded"></div>
-                  <span className="text-sm text-gray-700">COGS</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-500 rounded"></div>
-                  <span className="text-sm text-gray-700">Expenses (incl. Payroll + Marketing)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-500 rounded"></div>
-                  <span className="text-sm text-gray-700">Net Profit</span>
-                </div>
+            {/* Monthly Performance Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-lg font-semibold">2025 Monthly Performance</h2>
+                <p className="text-sm text-gray-500">Complete breakdown by month including Nov-Dec actual data</p>
               </div>
-
-              {/* Chart */}
-              <div className="space-y-6">
-                {monthlyData2025
-                  .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                  .map(month => {
-                    // Variable overhead: base overhead (includes payroll) + actual marketing cost
-                    const baseOverhead = 67567.14; // Already includes $40K payroll
-                    const marketingCost = monthlyMarketingCosts[month.month] || 0;
-                    const totalExpenses = baseOverhead + marketingCost;
-                    const netProfit = month.margin - totalExpenses;
-                    const maxValue = Math.max(...monthlyData2025
-                      .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                      .map(m => m.revenue));
-
-                    return (
-                      <div key={month.month} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-gray-900 w-24">
-                            {month.monthName.split(' ')[0]}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {month.transactionCount} transactions
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          {/* Revenue Bar */}
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-gray-600">Revenue</div>
-                            <div className="flex-1">
-                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
-                                <div
-                                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-end px-2"
-                                  style={{ width: `${(month.revenue / maxValue) * 100}%` }}
-                                >
-                                  <span className="text-white text-xs font-semibold">
-                                    {formatCurrency(month.revenue)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* COGS Bar */}
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-gray-600">COGS</div>
-                            <div className="flex-1">
-                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
-                                <div
-                                  className="h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-end px-2"
-                                  style={{ width: `${(month.costs / maxValue) * 100}%` }}
-                                >
-                                  <span className="text-white text-xs font-semibold">
-                                    {formatCurrency(month.costs)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="w-16 text-xs text-gray-500 text-right">
-                              {((month.costs / month.revenue) * 100).toFixed(1)}%
-                            </div>
-                          </div>
-
-                          {/* Expenses (Overhead incl. Payroll) Bar */}
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-gray-600">Expenses</div>
-                            <div className="flex-1">
-                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
-                                <div
-                                  className="h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-end px-2"
-                                  style={{ width: `${(totalExpenses / maxValue) * 100}%` }}
-                                >
-                                  <span className="text-white text-xs font-semibold">
-                                    {formatCurrency(totalExpenses)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="w-16 text-xs text-gray-500 text-right">
-                              {((totalExpenses / month.revenue) * 100).toFixed(1)}%
-                            </div>
-                          </div>
-
-                          {/* Net Profit Bar */}
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 text-xs text-gray-600 font-semibold">Net Profit</div>
-                            <div className="flex-1">
-                              <div className="h-7 bg-gray-100 rounded overflow-hidden relative">
-                                <div
-                                  className={`h-full bg-gradient-to-r ${netProfit >= 0 ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'} flex items-center justify-end px-2`}
-                                  style={{ width: `${Math.abs(netProfit / maxValue) * 100}%` }}
-                                >
-                                  <span className="text-white text-xs font-semibold">
-                                    {formatCurrency(netProfit)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="w-16 text-xs font-semibold text-gray-700 text-right">
-                              {((netProfit / month.revenue) * 100).toFixed(1)}%
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jobs</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {Object.entries(monthlyPerformance2025).map(([key, data]) => (
+                      <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-blue-50' : ''}`}>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{data.month}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-900">{data.jobs.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(data.revenue)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(data.grossMargin)}</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600">{data.marginPercent.toFixed(1)}%</td>
+                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(data.adSpend)}</td>
+                        <td className={`px-4 py-3 text-sm text-right font-medium ${data.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(data.netMargin)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-100 font-semibold">
+                    <tr>
+                      <td className="px-4 py-3 text-sm text-gray-900">YTD Total</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">
+                        {Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.jobs, 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-green-600">
+                        {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.revenue, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-blue-600">
+                        {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.grossMargin, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600">
+                        {(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.grossMargin, 0) /
+                          Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.revenue, 0) * 100).toFixed(1)}%
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-red-600">
+                        {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.adSpend, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-green-600">
+                        {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
 
-            {/* Monthly Comparison Table */}
-            <div className="bg-white rounded-xl p-6 shadow-sm overflow-x-auto">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">📊 Detailed Monthly Breakdown</h2>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Month</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Revenue</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">COGS</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Gross Margin</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Overhead</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Net Profit</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Net %</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Trans.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyData2025
-                    .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                    .map((month, index) => {
-                      // Variable overhead: base overhead + actual marketing cost for this month
-                      const baseOverhead = 67567.14;
-                      const marketingCost = monthlyMarketingCosts[month.month] || 0;
-                      const overhead = baseOverhead + marketingCost;
-                      const netProfit = month.margin - overhead;
+            {/* Marketing Costs Detail */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">2025 Monthly Marketing/Ad Spend</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">% of Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {Object.entries(monthlyMarketingCosts).map(([month, cost]) => {
+                      const totalSpend = Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0);
                       return (
-                        <tr key={month.month} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                          <td className="py-3 px-4 text-sm font-medium text-gray-900">
-                            {month.monthName.split(' ')[0]}
+                        <tr key={month} className={`hover:bg-gray-50 ${month.includes('11') || month.includes('12') ? 'bg-blue-50' : ''}`}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            {new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                           </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-900">
-                            {formatCurrency(month.revenue)}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-900">
-                            {formatCurrency(month.costs)}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-900">
-                            {formatCurrency(month.margin)}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-900">
-                            {formatCurrency(overhead)}
-                          </td>
-                          <td className={`py-3 px-4 text-sm text-right font-semibold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(netProfit)}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-900">
-                            {((netProfit / month.revenue) * 100).toFixed(2)}%
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right text-gray-600">
-                            {month.transactionCount}
+                          <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(cost)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600">
+                            {(cost / totalSpend * 100).toFixed(1)}%
                           </td>
                         </tr>
                       );
                     })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-300 font-bold">
-                    <td className="py-3 px-4 text-sm">Total</td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {formatCurrency(monthlyData2025
-                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                        .reduce((sum, m) => sum + m.revenue, 0))}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {formatCurrency(monthlyData2025
-                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                        .reduce((sum, m) => sum + m.costs, 0))}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {formatCurrency(monthlyData2025
-                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                        .reduce((sum, m) => sum + m.margin, 0))}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {(() => {
-                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
-                        const baseOverhead = 67567.14;
-                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                        return formatCurrency((baseOverhead * 10) + totalMarketingCosts);
-                      })()}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right text-green-600">
-                      {(() => {
-                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
-                        const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                        const baseOverhead = 67567.14;
-                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                        const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
-                        return formatCurrency(totalMargin - totalOverhead);
-                      })()}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {(() => {
-                        const filtered = monthlyData2025.filter(m => m.month >= '2025-01' && m.month <= '2025-10');
-                        const totalRevenue = filtered.reduce((sum, m) => sum + m.revenue, 0);
-                        const totalMargin = filtered.reduce((sum, m) => sum + m.margin, 0);
-                        const baseOverhead = 67567.14;
-                        const totalMarketingCosts = filtered.reduce((sum, m) => sum + (monthlyMarketingCosts[m.month] || 0), 0);
-                        const totalOverhead = (baseOverhead * 10) + totalMarketingCosts;
-                        const netProfit = totalMargin - totalOverhead;
-                        return ((netProfit / totalRevenue) * 100).toFixed(2);
-                      })()}%
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right">
-                      {monthlyData2025
-                        .filter(m => m.month >= '2025-01' && m.month <= '2025-10')
-                        .reduce((sum, m) => sum + m.transactionCount, 0)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-bold text-gray-900">Total</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-red-600">
+                        {formatCurrency(Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-gray-600">100%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           </div>
         )}
-      </main>
-    </div>
+
+        {/* Bank Statements Tab */}
+        {activeTab === 'bank-statements' && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Transactions</h3>
+                <p className="text-2xl font-bold text-gray-900">{filteredTransactions.length}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Deposits</h3>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(filteredTotals.deposits)}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Withdrawals</h3>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(filteredTotals.withdrawals)}</p>
+              </div>
+              <div className="bg-purple-50 rounded-lg shadow p-4 border-2 border-purple-200">
+                <h3 className="text-sm font-medium text-purple-700">Cash Infusions Marked</h3>
+                <p className="text-2xl font-bold text-purple-600">{formatCurrency(totalCashInfusions)}</p>
+                <p className="text-xs text-purple-500">{transactions.filter(t => t.isCashInfusion).length} transactions</p>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
+                  <input
+                    type="text"
+                    placeholder="Search description..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Source</label>
+                  <select
+                    value={sourceFilter}
+                    onChange={(e) => setSourceFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Sources</option>
+                    {getSources().map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Categories</option>
+                    {getCategories().map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="deposit">Deposits</option>
+                    <option value="withdrawal">Withdrawals</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Sort By</label>
+                  <select
+                    value={`${sortField}-${sortDirection}`}
+                    onChange={(e) => {
+                      const [field, dir] = e.target.value.split('-') as ['date' | 'amount', 'asc' | 'desc'];
+                      setSortField(field);
+                      setSortDirection(dir);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="date-desc">Date (Newest)</option>
+                    <option value="date-asc">Date (Oldest)</option>
+                    <option value="amount-desc">Amount (High-Low)</option>
+                    <option value="amount-asc">Amount (Low-High)</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyCashInfusions}
+                      onChange={(e) => setShowOnlyCashInfusions(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-700">Cash Infusions Only</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-purple-800 mb-1">Mark Cash Infusion Payments</h3>
+              <p className="text-sm text-purple-700">
+                Use the checkboxes below to mark transactions that represent personal cash infusions back into the company.
+                Look for Zelle payments to SEE-N-CLEAR AUTO GLASS LLC or similar company payments.
+                Your selections are automatically saved.
+              </p>
+            </div>
+
+            {/* Transactions Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Cash Infusion
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredTransactions.map((t) => (
+                      <tr
+                        key={t.id}
+                        className={`hover:bg-gray-50 ${t.isCashInfusion ? 'bg-purple-50' : ''}`}
+                      >
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={t.isCashInfusion}
+                            onChange={() => toggleCashInfusion(t.id)}
+                            className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                          {formatDate(t.date)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            t.source === 'Cash App'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {t.source}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 max-w-md truncate" title={t.description}>
+                          {t.description}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {t.category}
+                        </td>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-right font-medium ${
+                          t.type === 'deposit' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {t.type === 'deposit' ? '+' : ''}{formatCurrency(t.amount)}
+                          {t.fee && <span className="text-xs text-gray-400 block">Fee: {formatCurrency(t.fee)}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredTransactions.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No transactions match your filters
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

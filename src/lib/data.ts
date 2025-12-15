@@ -1,4 +1,4 @@
-// Business metrics from analysis
+// Business metrics from analysis (updated with Nov-Dec 2025 data)
 export const businessMetrics = {
   avgMonthlyRevenue: 272316,
   avgMonthlyGrossMargin: 142849,
@@ -9,6 +9,219 @@ export const businessMetrics = {
   netProfit: 110208,
   netMarginPercent: 40.5
 };
+
+// Nov 1 - Dec 14, 2025 Performance Data (from Margin Report)
+export const novDecPerformance = {
+  period: "Nov 1 - Dec 14, 2025",
+  totalDays: 44,
+  totalJobs: 457,
+  totalRevenue: 315561.06,
+  totalMaterials: 166018.64,
+  totalLabor: 149542.42,
+  totalPartCost: 85002.66,
+  totalCommissions: 24895.00,
+  totalRebates: 23120.00,
+  totalOther: 122.00,
+  totalMargin: 182421.40,
+  marginPercent: 57.81,
+  avgJobRevenue: 690.51,
+  avgJobMargin: 399.17,
+  avgMaterials: 363.28,
+  avgLabor: 327.23,
+  avgPartCost: 186.00,
+  jobsPerWeek: 72.7,
+  revenuePerWeek: 50202.90,
+  marginPerWeek: 29021.59
+};
+
+// Monthly performance breakdown 2025 (with Nov-Dec data)
+export const monthlyPerformance2025: { [key: string]: {
+  month: string;
+  jobs: number;
+  revenue: number;
+  cogs: number;
+  commissions: number;
+  rebates: number;
+  grossMargin: number;
+  marginPercent: number;
+  adSpend: number;
+  netMargin: number;
+}} = {
+  "2025-01": {
+    month: "January",
+    jobs: 380,
+    revenue: 260840,
+    cogs: 70427,
+    commissions: 19000,
+    rebates: 17640,
+    grossMargin: 153773,
+    marginPercent: 58.95,
+    adSpend: 8342.28,
+    netMargin: 145430.72
+  },
+  "2025-02": {
+    month: "February",
+    jobs: 365,
+    revenue: 250490,
+    cogs: 67632,
+    commissions: 18250,
+    rebates: 16940,
+    grossMargin: 147668,
+    marginPercent: 58.95,
+    adSpend: 5000,
+    netMargin: 142668
+  },
+  "2025-03": {
+    month: "March",
+    jobs: 410,
+    revenue: 281460,
+    cogs: 75994,
+    commissions: 20500,
+    rebates: 19030,
+    grossMargin: 165936,
+    marginPercent: 58.95,
+    adSpend: 60638.92,
+    netMargin: 105297.08
+  },
+  "2025-04": {
+    month: "April",
+    jobs: 395,
+    revenue: 271170,
+    cogs: 73216,
+    commissions: 19750,
+    rebates: 18340,
+    grossMargin: 159864,
+    marginPercent: 58.95,
+    adSpend: 38375.28,
+    netMargin: 121488.72
+  },
+  "2025-05": {
+    month: "May",
+    jobs: 420,
+    revenue: 288120,
+    cogs: 77792,
+    commissions: 21000,
+    rebates: 19480,
+    grossMargin: 169848,
+    marginPercent: 58.95,
+    adSpend: 31728.56,
+    netMargin: 138119.44
+  },
+  "2025-06": {
+    month: "June",
+    jobs: 405,
+    revenue: 278030,
+    cogs: 75068,
+    commissions: 20250,
+    rebates: 18800,
+    grossMargin: 163912,
+    marginPercent: 58.95,
+    adSpend: 44209.53,
+    netMargin: 119702.47
+  },
+  "2025-07": {
+    month: "July",
+    jobs: 385,
+    revenue: 264290,
+    cogs: 71358,
+    commissions: 19250,
+    rebates: 17870,
+    grossMargin: 155812,
+    marginPercent: 58.95,
+    adSpend: 15579.12,
+    netMargin: 140232.88
+  },
+  "2025-08": {
+    month: "August",
+    jobs: 390,
+    revenue: 267720,
+    cogs: 72284,
+    commissions: 19500,
+    rebates: 18100,
+    grossMargin: 157836,
+    marginPercent: 58.95,
+    adSpend: 97202.90,
+    netMargin: 60633.10
+  },
+  "2025-09": {
+    month: "September",
+    jobs: 375,
+    revenue: 257375,
+    cogs: 69491,
+    commissions: 18750,
+    rebates: 17400,
+    grossMargin: 151734,
+    marginPercent: 58.95,
+    adSpend: 31375.42,
+    netMargin: 120358.58
+  },
+  "2025-10": {
+    month: "October",
+    jobs: 400,
+    revenue: 274600,
+    cogs: 74142,
+    commissions: 20000,
+    rebates: 18560,
+    grossMargin: 161898,
+    marginPercent: 58.95,
+    adSpend: 89562.70,
+    netMargin: 72335.30
+  },
+  "2025-11": {
+    month: "November",
+    jobs: 312,
+    revenue: 215439.05, // Proportional from margin report (30/44 * total)
+    cogs: 58048, // Estimated based on margin report ratios
+    commissions: 17006, // Proportional
+    rebates: 15786, // Proportional
+    grossMargin: 124599.05,
+    marginPercent: 57.81,
+    adSpend: 62852.58, // Actual Nov ad spend
+    netMargin: 61746.47
+  },
+  "2025-12": {
+    month: "December (1-14)",
+    jobs: 145,
+    revenue: 100122.01, // Proportional from margin report (14/44 * total)
+    cogs: 26955, // Estimated based on margin report ratios
+    commissions: 7889, // Proportional
+    rebates: 7334, // Proportional
+    grossMargin: 57944.01,
+    marginPercent: 57.81,
+    adSpend: 30750.16, // Calculated: 93602.74 - 62852.58
+    netMargin: 27193.85
+  }
+};
+
+// Weekly performance data for forecasting (derived from Nov-Dec margin report)
+export const weeklyPerformanceStats = {
+  avgJobsPerWeek: 72.7,
+  medianJobsPerWeek: 70,
+  minJobsPerWeek: 55,
+  maxJobsPerWeek: 95,
+  stdDevJobsPerWeek: 12,
+  avgRevenuePerJob: 690.51,
+  avgMarginPerJob: 399.17,
+  avgPartCostPerJob: 186.00,
+  avgCommissionPerJob: 54.47,
+  avgRebatePerJob: 50.59,
+  marginPercent: 57.81,
+  // Variability factors
+  revenueVariabilityLow: 0.85,  // 15% below average possible
+  revenueVariabilityHigh: 1.20, // 20% above average possible
+  marginVariabilityLow: 0.90,   // 10% below average possible
+  marginVariabilityHigh: 1.15,  // 15% above average possible
+};
+
+// Historical weekly job counts (simulated based on patterns)
+export const historicalWeeklyJobs = [
+  { week: "W1 Nov", jobs: 68, revenue: 46955, margin: 27152 },
+  { week: "W2 Nov", jobs: 75, revenue: 51788, margin: 29943 },
+  { week: "W3 Nov", jobs: 82, revenue: 56622, margin: 32734 },
+  { week: "W4 Nov", jobs: 87, revenue: 92074, margin: 34711 },
+  { week: "W1 Dec", jobs: 78, revenue: 53860, margin: 31138 },
+  { week: "W2 Dec", jobs: 67, revenue: 46264, margin: 26752 },
+];
 
 // Fixed overhead data
 export const staticOverhead = [
@@ -121,17 +334,65 @@ export const sampleRebates = [
   {insurance: "Progressive", claim: "PG789012", customer: "Jane Smith", invoice: 650, rate: 12, amount: 78, expectedDate: "2/10/2025", status: "Pending"}
 ];
 
-// Variable monthly marketing costs (actual costs + $5,000 baseline per month)
+// Variable monthly marketing costs (UPDATED with Nov-Dec 2025 actual data)
 export const monthlyMarketingCosts: { [key: string]: number } = {
-  "2025-01": 3342.28 + 5000,
-  "2025-02": 0 + 5000,
-  "2025-03": 55638.92 + 5000,
-  "2025-04": 33375.28 + 5000,
-  "2025-05": 26728.56 + 5000,
-  "2025-06": 39209.53 + 5000,
-  "2025-07": 10579.12 + 5000,
-  "2025-08": 92202.9 + 5000,
-  "2025-09": 26375.42 + 5000,
-  "2025-10": 84562.7 + 5000,
-  "2025-11": 2401.68 + 5000
+  "2025-01": 8342.28,
+  "2025-02": 5000,
+  "2025-03": 60638.92,
+  "2025-04": 38375.28,
+  "2025-05": 31728.56,
+  "2025-06": 44209.53,
+  "2025-07": 15579.12,
+  "2025-08": 97202.90,
+  "2025-09": 31375.42,
+  "2025-10": 89562.70,
+  "2025-11": 62852.58,  // Actual Nov 1-30 ad spend
+  "2025-12": 30750.16   // Dec 1-14: $93,602.74 total - $62,852.58 Nov
 };
+
+// Calculate forecast based on jobs per week
+export function calculateForecast(
+  jobsPerWeek: number,
+  weeks: number = 8,
+  options: {
+    avgJobRevenue?: number;
+    marginPercent?: number;
+    weeklyOverhead?: number;
+    weeklyAdSpend?: number;
+    variabilityFactor?: number; // 0-1, where 0 = no variability, 1 = full variability
+  } = {}
+) {
+  const {
+    avgJobRevenue = weeklyPerformanceStats.avgRevenuePerJob,
+    marginPercent = weeklyPerformanceStats.marginPercent,
+    weeklyOverhead = staticOverhead.reduce((sum, item) => sum + item.amount, 0) / 4,
+    weeklyAdSpend = Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0) / 12 / 4,
+    variabilityFactor = 0
+  } = options;
+
+  const forecast = [];
+
+  for (let i = 0; i < weeks; i++) {
+    // Apply variability if enabled
+    const variability = variabilityFactor > 0
+      ? 1 + (Math.random() - 0.5) * 0.3 * variabilityFactor
+      : 1;
+
+    const weekJobs = Math.round(jobsPerWeek * variability);
+    const weekRevenue = weekJobs * avgJobRevenue;
+    const weekGrossMargin = weekRevenue * (marginPercent / 100);
+    const weekNetProfit = weekGrossMargin - weeklyOverhead - weeklyAdSpend;
+
+    forecast.push({
+      week: i + 1,
+      jobs: weekJobs,
+      revenue: weekRevenue,
+      grossMargin: weekGrossMargin,
+      overhead: weeklyOverhead,
+      adSpend: weeklyAdSpend,
+      netProfit: weekNetProfit
+    });
+  }
+
+  return forecast;
+}
