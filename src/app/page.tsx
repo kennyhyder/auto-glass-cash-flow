@@ -247,17 +247,24 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Auto Glass Cash Flow Management</h1>
-          <p className="text-sm text-gray-500">Extreme Auto Glass LLC - Financial Dashboard</p>
+      <header className="bg-[#1B4B82] shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo.webp"
+              alt="Auto Glass 2020"
+              className="h-12 w-auto"
+            />
+            <div className="h-8 w-px bg-[#6BA4D0]/30"></div>
+            <h1 className="text-xl font-semibold text-white">Financial Dashboard</h1>
+          </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="bg-white border-b border-[#1B4B82]/20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex space-x-1 overflow-x-auto">
             {tabs.map(tab => (
@@ -266,8 +273,8 @@ export default function Home() {
                 onClick={() => handleTabChange(tab.id)}
                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id
-                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? 'text-[#1B4B82] border-b-2 border-[#1B4B82] bg-[#6BA4D0]/10'
+                    : 'text-gray-600 hover:text-[#1B4B82] hover:bg-slate-50'
                 }`}
               >
                 {tab.label}
@@ -298,7 +305,7 @@ export default function Home() {
               </div>
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-sm font-medium text-gray-500">Net Profit</h3>
-                <p className="text-2xl font-bold text-blue-600">{formatCurrency(businessMetrics.netProfit)}</p>
+                <p className="text-2xl font-bold text-[#1B4B82]">{formatCurrency(businessMetrics.netProfit)}</p>
                 <p className="text-sm text-gray-500">{businessMetrics.netMarginPercent}% margin</p>
               </div>
             </div>
@@ -445,9 +452,9 @@ export default function Home() {
         {activeTab === 'forecast' && (
           <div className="space-y-6">
             {/* Real Performance Reference */}
-            <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-blue-800 mb-2">Actual Performance Data (Nov-Dec 2025)</h2>
-              <p className="text-sm text-blue-600 mb-4">Based on real margin report data - 457 jobs over 44 days</p>
+            <div className="bg-gradient-to-r from-[#6BA4D0]/20 to-[#1B4B82]/10 border border-[#1B4B82]/30 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-[#1B4B82] mb-2">Actual Performance Data (Nov-Dec 2025)</h2>
+              <p className="text-sm text-[#6BA4D0] mb-4">Based on real margin report data - 457 jobs over 44 days</p>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
                 <div className="bg-white rounded-lg p-3 shadow-sm">
                   <p className="text-xs text-gray-500">Avg Jobs/Week</p>
@@ -459,7 +466,7 @@ export default function Home() {
                 </div>
                 <div className="bg-white rounded-lg p-3 shadow-sm">
                   <p className="text-xs text-gray-500">Margin %</p>
-                  <p className="text-xl font-bold text-blue-600">57.8%</p>
+                  <p className="text-xl font-bold text-[#1B4B82]">57.8%</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 shadow-sm">
                   <p className="text-xs text-gray-500">Weekly Ad Spend</p>
@@ -784,31 +791,31 @@ export default function Home() {
             </div>
 
             {/* Nov-Dec 2025 Highlight */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-blue-800 mb-4">Nov 1 - Dec 14, 2025 Actual Performance</h2>
+            <div className="bg-[#6BA4D0]/15 border border-[#1B4B82]/30 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-[#1B4B82] mb-4">Nov 1 - Dec 14, 2025 Actual Performance</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <div>
-                  <p className="text-sm text-blue-600">Total Jobs</p>
+                  <p className="text-sm text-[#1B4B82]">Total Jobs</p>
                   <p className="text-xl font-bold text-gray-900">{novDecPerformance.totalJobs}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Total Revenue</p>
+                  <p className="text-sm text-[#1B4B82]">Total Revenue</p>
                   <p className="text-xl font-bold text-green-600">{formatCurrency(novDecPerformance.totalRevenue)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Total Margin</p>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(novDecPerformance.totalMargin)}</p>
+                  <p className="text-sm text-[#1B4B82]">Total Margin</p>
+                  <p className="text-xl font-bold text-[#1B4B82]">{formatCurrency(novDecPerformance.totalMargin)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Margin %</p>
+                  <p className="text-sm text-[#1B4B82]">Margin %</p>
                   <p className="text-xl font-bold text-gray-900">{novDecPerformance.marginPercent}%</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Avg Revenue/Job</p>
+                  <p className="text-sm text-[#1B4B82]">Avg Revenue/Job</p>
                   <p className="text-xl font-bold text-gray-900">{formatCurrency(novDecPerformance.avgJobRevenue)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Avg Margin/Job</p>
+                  <p className="text-sm text-[#1B4B82]">Avg Margin/Job</p>
                   <p className="text-xl font-bold text-gray-900">{formatCurrency(novDecPerformance.avgJobMargin)}</p>
                 </div>
               </div>
@@ -841,7 +848,7 @@ export default function Home() {
                       const infusion = cashInfusionsByMonth[key];
                       const netProfit = data.netMargin - monthlyOverhead;
                       return (
-                        <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-blue-50' : ''}`}>
+                        <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-[#6BA4D0]/10' : ''}`}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{data.month}</td>
                           <td className="px-4 py-3 text-sm text-right text-gray-900">{data.jobs.toLocaleString()}</td>
                           <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(data.revenue)}</td>
@@ -959,7 +966,7 @@ export default function Home() {
                     {Object.entries(monthlyMarketingCosts).map(([month, cost]) => {
                       const totalSpend = Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0);
                       return (
-                        <tr key={month} className={`hover:bg-gray-50 ${month.includes('11') || month.includes('12') ? 'bg-blue-50' : ''}`}>
+                        <tr key={month} className={`hover:bg-gray-50 ${month.includes('11') || month.includes('12') ? 'bg-[#6BA4D0]/10' : ''}`}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">
                             {new Date(month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                           </td>
