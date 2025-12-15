@@ -10,6 +10,8 @@ import {
   weeklyPerformanceStats,
   monthlyPerformance2025,
   calculateForecast,
+  calculateJobsFromAdSpend,
+  adSpendPerformance,
   novDecPerformance
 } from '@/lib/data';
 import {
@@ -34,31 +36,28 @@ export default function Home() {
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Forecast tool state
-  const [forecastJobsPerWeek, setForecastJobsPerWeek] = useState(weeklyPerformanceStats.avgJobsPerWeek);
+  // Forecast tool state - ad spend is primary driver
   const [forecastWeeks, setForecastWeeks] = useState(8);
+  const [forecastWeeklyAdSpend, setForecastWeeklyAdSpend] = useState(15000); // Default to ~$15k/week
   const [forecastAvgJobRevenue, setForecastAvgJobRevenue] = useState(weeklyPerformanceStats.avgRevenuePerJob);
   const [forecastMarginPercent, setForecastMarginPercent] = useState(weeklyPerformanceStats.marginPercent);
-  const [forecastWeeklyAdSpend, setForecastWeeklyAdSpend] = useState(
-    Object.values(monthlyMarketingCosts).reduce((a, b) => a + b, 0) / 12 / 4
-  );
-  const [forecastIncludePayroll, setForecastIncludePayroll] = useState(true);
+  const [useAdSpendCorrelation, setUseAdSpendCorrelation] = useState(true);
+  const [manualJobsOverride, setManualJobsOverride] = useState(weeklyPerformanceStats.avgJobsPerWeek);
+
+  // Calculate expected jobs from ad spend
+  const expectedJobsFromAdSpend = useMemo(() => {
+    return calculateJobsFromAdSpend(forecastWeeklyAdSpend);
+  }, [forecastWeeklyAdSpend]);
 
   // Calculate forecast based on inputs
   const forecastResults = useMemo(() => {
-    const weeklyPayroll = forecastIncludePayroll ? 15520 : 0; // Weekly payroll from data
-    const weeklyOverhead = staticOverhead
-      .filter(item => item.category !== 'Payroll')
-      .reduce((sum, item) => sum + item.amount, 0) / 4 + weeklyPayroll;
-
-    return calculateForecast(forecastJobsPerWeek, forecastWeeks, {
+    return calculateForecast(forecastWeeklyAdSpend, forecastWeeks, {
       avgJobRevenue: forecastAvgJobRevenue,
       marginPercent: forecastMarginPercent,
-      weeklyOverhead: weeklyOverhead,
-      weeklyAdSpend: forecastWeeklyAdSpend,
-      variabilityFactor: 0
+      useAdSpendCorrelation: useAdSpendCorrelation,
+      manualJobsPerWeek: useAdSpendCorrelation ? undefined : manualJobsOverride
     });
-  }, [forecastJobsPerWeek, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, forecastWeeklyAdSpend, forecastIncludePayroll]);
+  }, [forecastWeeklyAdSpend, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, useAdSpendCorrelation, manualJobsOverride]);
 
   // Calculate forecast totals
   const forecastTotals = useMemo(() => {
@@ -66,8 +65,9 @@ export default function Home() {
       jobs: acc.jobs + week.jobs,
       revenue: acc.revenue + week.revenue,
       grossMargin: acc.grossMargin + week.grossMargin,
-      netProfit: acc.netProfit + week.netProfit
-    }), { jobs: 0, revenue: 0, grossMargin: 0, netProfit: 0 });
+      netMargin: acc.netMargin + week.netMargin,
+      adSpend: acc.adSpend + week.adSpend
+    }), { jobs: 0, revenue: 0, grossMargin: 0, netMargin: 0, adSpend: 0 });
   }, [forecastResults]);
 
   // Load saved cash infusion selections from localStorage
@@ -386,57 +386,75 @@ export default function Home() {
         {/* Forecast Tab */}
         {activeTab === 'forecast' && (
           <div className="space-y-6">
+            {/* Ad Spend Performance Correlation */}
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-purple-800 mb-2">Ad Spend Performance Correlation</h2>
+              <p className="text-sm text-purple-600 mb-4">Real data from June-August 2025 showing how ad spend drives job conversions</p>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-purple-700">
+                      <th className="px-3 py-2 text-left">Week</th>
+                      <th className="px-3 py-2 text-right">Ad Spend</th>
+                      <th className="px-3 py-2 text-right">Jobs</th>
+                      <th className="px-3 py-2 text-right">Revenue</th>
+                      <th className="px-3 py-2 text-right">ROAS</th>
+                      <th className="px-3 py-2 text-right">Cost/Job</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-100">
+                    {adSpendPerformance.map((week) => (
+                      <tr key={week.week} className="hover:bg-purple-100/50">
+                        <td className="px-3 py-2 font-medium">{week.week}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(week.adSpend)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{week.conversions}</td>
+                        <td className="px-3 py-2 text-right text-green-600">{formatCurrency(week.revenue)}</td>
+                        <td className="px-3 py-2 text-right">{week.roas.toFixed(1)}x</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(week.adSpend / week.conversions)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Interactive Forecast Controls */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-2">Interactive Job-Based Forecast</h2>
-              <p className="text-sm text-gray-500 mb-6">Adjust inputs to forecast revenue and profit based on real Nov-Dec 2025 performance data</p>
+              <h2 className="text-lg font-semibold mb-2">Ad Spend-Driven Forecast</h2>
+              <p className="text-sm text-gray-500 mb-6">Adjust weekly ad spend to see projected jobs, revenue, and profit based on real performance data</p>
 
-              {/* Key Performance Reference */}
+              {/* Primary Control: Weekly Ad Spend */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <h3 className="text-sm font-semibold text-blue-800 mb-2">Reference: Nov 1 - Dec 14, 2025 Performance</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-blue-600">Jobs/Week:</span>
-                    <span className="ml-2 font-medium">{novDecPerformance.jobsPerWeek.toFixed(1)}</span>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-blue-800 mb-2">
+                      Weekly Ad Spend: <span className="text-2xl font-bold text-blue-600">{formatCurrency(forecastWeeklyAdSpend)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="5000"
+                      max="30000"
+                      step="500"
+                      value={forecastWeeklyAdSpend}
+                      onChange={(e) => setForecastWeeklyAdSpend(Number(e.target.value))}
+                      className="w-full h-3 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-blue-600 mt-1">
+                      <span>$5k (Conservative)</span>
+                      <span>$15k (Moderate)</span>
+                      <span>$30k (Aggressive)</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-blue-600">Avg Revenue/Job:</span>
-                    <span className="ml-2 font-medium">{formatCurrency(novDecPerformance.avgJobRevenue)}</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-600">Margin %:</span>
-                    <span className="ml-2 font-medium">{novDecPerformance.marginPercent}%</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-600">Avg Margin/Job:</span>
-                    <span className="ml-2 font-medium">{formatCurrency(novDecPerformance.avgJobMargin)}</span>
+                  <div className="text-center md:text-right bg-white rounded-lg p-4 shadow-sm">
+                    <p className="text-sm text-gray-500">Expected Jobs/Week</p>
+                    <p className="text-3xl font-bold text-green-600">{expectedJobsFromAdSpend}</p>
+                    <p className="text-xs text-gray-400">{formatCurrency(forecastWeeklyAdSpend / expectedJobsFromAdSpend)}/job</p>
                   </div>
                 </div>
               </div>
 
-              {/* Input Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                {/* Jobs Per Week */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Jobs Per Week: <span className="text-blue-600 font-bold">{forecastJobsPerWeek}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="30"
-                    max="120"
-                    step="1"
-                    value={forecastJobsPerWeek}
-                    onChange={(e) => setForecastJobsPerWeek(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>30 (Low)</span>
-                    <span>73 (Avg)</span>
-                    <span>120 (High)</span>
-                  </div>
-                </div>
-
+              {/* Secondary Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                 {/* Avg Revenue Per Job */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
@@ -453,7 +471,7 @@ export default function Home() {
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>$500</span>
-                    <span>$691 (Actual)</span>
+                    <span>$691</span>
                     <span>$900</span>
                   </div>
                 </div>
@@ -466,7 +484,7 @@ export default function Home() {
                   <input
                     type="range"
                     min="45"
-                    max="70"
+                    max="65"
                     step="0.5"
                     value={forecastMarginPercent}
                     onChange={(e) => setForecastMarginPercent(Number(e.target.value))}
@@ -474,29 +492,8 @@ export default function Home() {
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>45%</span>
-                    <span>57.8% (Actual)</span>
-                    <span>70%</span>
-                  </div>
-                </div>
-
-                {/* Weekly Ad Spend */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Weekly Ad Spend: <span className="text-red-600 font-bold">{formatCurrency(forecastWeeklyAdSpend)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="2000"
-                    max="30000"
-                    step="500"
-                    value={forecastWeeklyAdSpend}
-                    onChange={(e) => setForecastWeeklyAdSpend(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500">
-                    <span>$2k</span>
-                    <span>$10.8k (Avg)</span>
-                    <span>$30k</span>
+                    <span>55%</span>
+                    <span>65%</span>
                   </div>
                 </div>
 
@@ -521,61 +518,74 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Include Payroll Toggle */}
-                <div className="flex items-center space-x-3 pt-6">
-                  <input
-                    type="checkbox"
-                    id="includePayroll"
-                    checked={forecastIncludePayroll}
-                    onChange={(e) => setForecastIncludePayroll(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="includePayroll" className="text-sm font-medium text-gray-700">
-                    Include Payroll in Overhead
+                {/* Manual Override Toggle */}
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!useAdSpendCorrelation}
+                      onChange={(e) => setUseAdSpendCorrelation(!e.target.checked)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Manual Jobs Override</span>
                   </label>
+                  {!useAdSpendCorrelation && (
+                    <input
+                      type="number"
+                      min="30"
+                      max="150"
+                      value={manualJobsOverride}
+                      onChange={(e) => setManualJobsOverride(Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="Jobs/week"
+                    />
+                  )}
                 </div>
               </div>
 
               {/* Quick Presets */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                <span className="text-sm text-gray-500 mr-2">Quick Presets:</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="text-sm text-gray-500 mr-2">Presets:</span>
                 <button
                   onClick={() => {
-                    setForecastJobsPerWeek(55);
-                    setForecastMarginPercent(52);
+                    setForecastWeeklyAdSpend(10000);
+                    setForecastMarginPercent(50);
+                    setUseAdSpendCorrelation(true);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 hover:bg-red-200"
                 >
-                  Pessimistic
+                  Conservative ($10k/wk)
                 </button>
                 <button
                   onClick={() => {
-                    setForecastJobsPerWeek(73);
+                    setForecastWeeklyAdSpend(15000);
                     setForecastAvgJobRevenue(691);
                     setForecastMarginPercent(57.8);
+                    setUseAdSpendCorrelation(true);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
                 >
-                  Actual (Nov-Dec)
+                  Moderate ($15k/wk)
                 </button>
                 <button
                   onClick={() => {
-                    setForecastJobsPerWeek(90);
-                    setForecastMarginPercent(60);
+                    setForecastWeeklyAdSpend(20000);
+                    setForecastMarginPercent(52);
+                    setUseAdSpendCorrelation(true);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 hover:bg-green-200"
                 >
-                  Optimistic
+                  Aggressive ($20k/wk)
                 </button>
               </div>
             </div>
 
             {/* Forecast Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Jobs</h3>
                 <p className="text-2xl font-bold text-gray-900">{forecastTotals.jobs}</p>
-                <p className="text-xs text-gray-500">{forecastWeeks} week forecast</p>
+                <p className="text-xs text-gray-500">{Math.round(forecastTotals.jobs / forecastWeeks)}/week avg</p>
               </div>
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
@@ -585,14 +595,19 @@ export default function Home() {
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">Gross Margin</h3>
                 <p className="text-2xl font-bold text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</p>
-                <p className="text-xs text-gray-500">{(forecastTotals.grossMargin / forecastTotals.revenue * 100).toFixed(1)}% of revenue</p>
+                <p className="text-xs text-gray-500">{forecastTotals.revenue > 0 ? (forecastTotals.grossMargin / forecastTotals.revenue * 100).toFixed(1) : 0}% of revenue</p>
               </div>
-              <div className={`rounded-lg shadow p-4 ${forecastTotals.netProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                <h3 className="text-sm font-medium text-gray-500">Net Profit</h3>
-                <p className={`text-2xl font-bold ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(forecastTotals.netProfit)}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Ad Spend</h3>
+                <p className="text-2xl font-bold text-red-600">{formatCurrency(forecastTotals.adSpend)}</p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.adSpend / forecastWeeks)}/week</p>
+              </div>
+              <div className={`rounded-lg shadow p-4 ${forecastTotals.netMargin >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <h3 className="text-sm font-medium text-gray-500">Net Margin</h3>
+                <p className={`text-2xl font-bold ${forecastTotals.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(forecastTotals.netMargin)}
                 </p>
-                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.netProfit / forecastWeeks)}/week</p>
+                <p className="text-xs text-gray-500">{formatCurrency(forecastTotals.netMargin / forecastWeeks)}/week</p>
               </div>
             </div>
 
@@ -600,6 +615,7 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b">
                 <h3 className="text-lg font-semibold">Weekly Breakdown</h3>
+                <p className="text-sm text-gray-500">Net Margin = Gross Margin - Ad Spend (matching 2025 Performance calculation)</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -609,9 +625,10 @@ export default function Home() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jobs</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Margin</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Overhead</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Profit</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Margin</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">ROAS</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost/Job</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -621,11 +638,12 @@ export default function Home() {
                         <td className="px-4 py-3 text-sm text-right text-gray-900">{week.jobs}</td>
                         <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(week.revenue)}</td>
                         <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(week.grossMargin)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(week.overhead)}</td>
                         <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(week.adSpend)}</td>
-                        <td className={`px-4 py-3 text-sm text-right font-medium ${week.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(week.netProfit)}
+                        <td className={`px-4 py-3 text-sm text-right font-medium ${week.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(week.netMargin)}
                         </td>
+                        <td className="px-4 py-3 text-sm text-right text-purple-600">{week.roas.toFixed(1)}x</td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600">{formatCurrency(week.costPerJob)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -635,14 +653,15 @@ export default function Home() {
                       <td className="px-4 py-3 text-sm text-right text-gray-900">{forecastTotals.jobs}</td>
                       <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(forecastTotals.revenue)}</td>
                       <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(forecastTotals.grossMargin)}</td>
-                      <td className="px-4 py-3 text-sm text-right text-red-600">
-                        {formatCurrency(forecastResults.reduce((sum, w) => sum + w.overhead, 0))}
+                      <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(forecastTotals.adSpend)}</td>
+                      <td className={`px-4 py-3 text-sm text-right ${forecastTotals.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(forecastTotals.netMargin)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-red-600">
-                        {formatCurrency(forecastResults.reduce((sum, w) => sum + w.adSpend, 0))}
+                      <td className="px-4 py-3 text-sm text-right text-purple-600">
+                        {forecastTotals.adSpend > 0 ? (forecastTotals.revenue / forecastTotals.adSpend).toFixed(1) : 0}x
                       </td>
-                      <td className={`px-4 py-3 text-sm text-right ${forecastTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(forecastTotals.netProfit)}
+                      <td className="px-4 py-3 text-sm text-right text-gray-600">
+                        {forecastTotals.jobs > 0 ? formatCurrency(forecastTotals.adSpend / forecastTotals.jobs) : '-'}
                       </td>
                     </tr>
                   </tfoot>
