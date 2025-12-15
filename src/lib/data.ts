@@ -286,7 +286,7 @@ export const staticOverhead = [
   {name: "Office Rent (10th)", amount: 1545.48, day: 10, category: "Rent", vendor: "Property Mgmt", autoPay: true},
   {name: "Amur", amount: 1500, day: 10, category: "Services", vendor: "Amur", autoPay: false},
   {name: "T-Mobile", amount: 600, day: 15, category: "Phone", vendor: "T-Mobile", autoPay: true},
-  {name: "Marketing", amount: 50000, day: 15, category: "Marketing", vendor: "Various", autoPay: false},
+  {name: "Marketing", amount: 5000, day: 15, category: "Marketing", vendor: "Various", autoPay: false},
   {name: "Kemper Insurance", amount: 3206.84, day: 15, category: "Insurance", vendor: "Kemper", autoPay: true},
   {name: "Channel", amount: 1809, day: 15, category: "Services", vendor: "Channel", autoPay: false},
   {name: "Intuit/QB", amount: 106.72, day: 15, category: "Software", vendor: "Intuit", autoPay: true},
