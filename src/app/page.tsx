@@ -68,7 +68,7 @@ export default function Home() {
   const [forecastWeeks, setForecastWeeks] = useState(8);
   const [forecastAvgJobRevenue, setForecastAvgJobRevenue] = useState(weeklyPerformanceStats.avgRevenuePerJob);
   const [forecastMarginPercent, setForecastMarginPercent] = useState(weeklyPerformanceStats.marginPercent);
-  const [includeOverhead, setIncludeOverhead] = useState(true);
+  const [includeOverhead, setIncludeOverhead] = useState(false); // Default OFF to match Performance tab
 
   // Calculate expected ad spend from jobs
   const expectedAdSpend = useMemo(() => {
