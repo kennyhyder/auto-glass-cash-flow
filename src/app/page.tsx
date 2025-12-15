@@ -12,6 +12,7 @@ import {
   calculateForecast,
   calculateAdSpendFromJobs,
   getWeeklyFixedOverhead,
+  getMonthlyFixedOverhead,
   novDecPerformance
 } from '@/lib/data';
 import {
@@ -75,8 +76,9 @@ export default function Home() {
     return calculateAdSpendFromJobs(forecastJobsPerWeek);
   }, [forecastJobsPerWeek]);
 
-  // Get weekly overhead
+  // Get weekly and monthly overhead
   const weeklyOverhead = useMemo(() => getWeeklyFixedOverhead(), []);
+  const monthlyOverhead = useMemo(() => getMonthlyFixedOverhead(), []);
 
   // Calculate forecast based on inputs
   const forecastResults = useMemo(() => {
@@ -731,7 +733,7 @@ export default function Home() {
         {activeTab === '2025-performance' && (
           <div className="space-y-6">
             {/* YTD Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">YTD Jobs</h3>
                 <p className="text-2xl font-bold text-gray-900">
@@ -751,10 +753,26 @@ export default function Home() {
                 </p>
               </div>
               <div className="bg-white rounded-lg shadow p-4">
-                <h3 className="text-sm font-medium text-gray-500">YTD Net Margin (After Ad Spend)</h3>
+                <h3 className="text-sm font-medium text-gray-500">YTD Net Margin</h3>
                 <p className="text-2xl font-bold text-purple-600">
                   {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
                 </p>
+                <p className="text-xs text-gray-400">After ad spend</p>
+              </div>
+              <div className={`rounded-lg shadow p-4 ${
+                Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0) - (monthlyOverhead * Object.keys(monthlyPerformance2025).length) >= 0
+                  ? 'bg-green-50 border-2 border-green-200'
+                  : 'bg-red-50 border-2 border-red-200'
+              }`}>
+                <h3 className="text-sm font-medium text-gray-500">YTD Net Profit</h3>
+                <p className={`text-2xl font-bold ${
+                  Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0) - (monthlyOverhead * Object.keys(monthlyPerformance2025).length) >= 0
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}>
+                  {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0) - (monthlyOverhead * Object.keys(monthlyPerformance2025).length))}
+                </p>
+                <p className="text-xs text-gray-400">After overhead</p>
               </div>
               <div className="bg-purple-50 rounded-lg shadow p-4 border-2 border-purple-200">
                 <h3 className="text-sm font-medium text-purple-700">YTD Cash Infusions</h3>
@@ -813,12 +831,15 @@ export default function Home() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Margin</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-orange-500 uppercase">Overhead</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Profit</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-purple-500 uppercase">Cash Infusion</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {Object.entries(monthlyPerformance2025).map(([key, data]) => {
                       const infusion = cashInfusionsByMonth[key];
+                      const netProfit = data.netMargin - monthlyOverhead;
                       return (
                         <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-blue-50' : ''}`}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{data.month}</td>
@@ -829,6 +850,10 @@ export default function Home() {
                           <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(data.adSpend)}</td>
                           <td className={`px-4 py-3 text-sm text-right font-medium ${data.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(data.netMargin)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-orange-600">{formatCurrency(monthlyOverhead)}</td>
+                          <td className={`px-4 py-3 text-sm text-right font-medium ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(netProfit)}
                           </td>
                           <td className="px-4 py-3 text-sm text-right text-purple-600 font-medium">
                             {infusion ? formatCurrency(infusion.total) : '-'}
@@ -859,6 +884,16 @@ export default function Home() {
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-green-600">
                         {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-orange-600">
+                        {formatCurrency(monthlyOverhead * Object.keys(monthlyPerformance2025).length)}
+                      </td>
+                      <td className={`px-4 py-3 text-sm text-right ${
+                        Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0) - (monthlyOverhead * Object.keys(monthlyPerformance2025).length) >= 0
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}>
+                        {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0) - (monthlyOverhead * Object.keys(monthlyPerformance2025).length))}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-purple-600">
                         {formatCurrency(totalCashInfusions)}
