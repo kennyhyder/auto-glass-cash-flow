@@ -26,6 +26,33 @@ type Tab = 'dashboard' | 'overhead' | 'payroll' | 'debt' | 'forecast' | '2025-pe
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
+  // Handle URL hash routing for tabs
+  useEffect(() => {
+    // Set initial tab from URL hash
+    const hash = window.location.hash.slice(1) as Tab;
+    const validTabs: Tab[] = ['dashboard', 'overhead', 'payroll', 'debt', 'forecast', '2025-performance', 'bank-statements'];
+    if (hash && validTabs.includes(hash)) {
+      setActiveTab(hash);
+    }
+
+    // Listen for hash changes (back/forward navigation)
+    const handleHashChange = () => {
+      const newHash = window.location.hash.slice(1) as Tab;
+      if (newHash && validTabs.includes(newHash)) {
+        setActiveTab(newHash);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update URL hash when tab changes
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    window.location.hash = tab;
+  };
+
   // Bank statements state
   const [transactions, setTransactions] = useState<BankTransaction[]>(bankTransactions);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -162,6 +189,31 @@ export default function Home() {
     return { deposits, withdrawals, net: deposits - withdrawals };
   }, [filteredTransactions]);
 
+  // Calculate cash infusions by month for performance reporting
+  const cashInfusionsByMonth = useMemo(() => {
+    const byMonth: { [key: string]: { total: number; items: { date: string; amount: number; description: string }[] } } = {};
+
+    transactions
+      .filter(t => t.isCashInfusion)
+      .forEach(t => {
+        const date = new Date(t.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+        if (!byMonth[monthKey]) {
+          byMonth[monthKey] = { total: 0, items: [] };
+        }
+
+        byMonth[monthKey].total += Math.abs(t.amount);
+        byMonth[monthKey].items.push({
+          date: t.date,
+          amount: Math.abs(t.amount),
+          description: t.description
+        });
+      });
+
+    return byMonth;
+  }, [transactions]);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'overhead', label: 'Overhead' },
@@ -205,7 +257,7 @@ export default function Home() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id
                     ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
@@ -671,7 +723,7 @@ export default function Home() {
         {activeTab === '2025-performance' && (
           <div className="space-y-6">
             {/* YTD Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="bg-white rounded-lg shadow p-4">
                 <h3 className="text-sm font-medium text-gray-500">YTD Jobs</h3>
                 <p className="text-2xl font-bold text-gray-900">
@@ -695,6 +747,13 @@ export default function Home() {
                 <p className="text-2xl font-bold text-purple-600">
                   {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
                 </p>
+              </div>
+              <div className="bg-purple-50 rounded-lg shadow p-4 border-2 border-purple-200">
+                <h3 className="text-sm font-medium text-purple-700">YTD Cash Infusions</h3>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(totalCashInfusions)}
+                </p>
+                <p className="text-xs text-purple-500">{transactions.filter(t => t.isCashInfusion).length} transactions</p>
               </div>
             </div>
 
@@ -733,7 +792,7 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b">
                 <h2 className="text-lg font-semibold">2025 Monthly Performance</h2>
-                <p className="text-sm text-gray-500">Complete breakdown by month including Nov-Dec actual data</p>
+                <p className="text-sm text-gray-500">Complete breakdown by month including Nov-Dec actual data and cash infusions</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -746,22 +805,30 @@ export default function Home() {
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ad Spend</th>
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Margin</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-purple-500 uppercase">Cash Infusion</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {Object.entries(monthlyPerformance2025).map(([key, data]) => (
-                      <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-blue-50' : ''}`}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{data.month}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-900">{data.jobs.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(data.revenue)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(data.grossMargin)}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600">{data.marginPercent.toFixed(1)}%</td>
-                        <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(data.adSpend)}</td>
-                        <td className={`px-4 py-3 text-sm text-right font-medium ${data.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(data.netMargin)}
-                        </td>
-                      </tr>
-                    ))}
+                    {Object.entries(monthlyPerformance2025).map(([key, data]) => {
+                      const infusion = cashInfusionsByMonth[key];
+                      return (
+                        <tr key={key} className={`hover:bg-gray-50 ${key.includes('11') || key.includes('12') ? 'bg-blue-50' : ''}`}>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{data.month}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900">{data.jobs.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(data.revenue)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-blue-600">{formatCurrency(data.grossMargin)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600">{data.marginPercent.toFixed(1)}%</td>
+                          <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(data.adSpend)}</td>
+                          <td className={`px-4 py-3 text-sm text-right font-medium ${data.netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(data.netMargin)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-purple-600 font-medium">
+                            {infusion ? formatCurrency(infusion.total) : '-'}
+                            {infusion && <span className="text-xs text-purple-400 block">({infusion.items.length})</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-gray-100 font-semibold">
                     <tr>
@@ -785,11 +852,53 @@ export default function Home() {
                       <td className="px-4 py-3 text-sm text-right text-green-600">
                         {formatCurrency(Object.values(monthlyPerformance2025).reduce((sum, m) => sum + m.netMargin, 0))}
                       </td>
+                      <td className="px-4 py-3 text-sm text-right text-purple-600">
+                        {formatCurrency(totalCashInfusions)}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             </div>
+
+            {/* Cash Infusion Details */}
+            {totalCashInfusions > 0 && (
+              <div className="bg-purple-50 rounded-lg shadow overflow-hidden border border-purple-200">
+                <div className="px-6 py-4 border-b border-purple-200">
+                  <h2 className="text-lg font-semibold text-purple-800">Cash Infusion Details</h2>
+                  <p className="text-sm text-purple-600">Owner cash infusions marked in Bank Statements tab</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-purple-200">
+                    <thead className="bg-purple-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-purple-700 uppercase">Description</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-purple-700 uppercase">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-100">
+                      {transactions
+                        .filter(t => t.isCashInfusion)
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((t) => (
+                          <tr key={t.id} className="hover:bg-purple-100/50">
+                            <td className="px-4 py-3 text-sm text-gray-900">{formatDate(t.date)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate">{t.description}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-purple-600">{formatCurrency(Math.abs(t.amount))}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                    <tfoot className="bg-purple-100 font-semibold">
+                      <tr>
+                        <td className="px-4 py-3 text-sm text-purple-800" colSpan={2}>Total Cash Infusions</td>
+                        <td className="px-4 py-3 text-sm text-right text-purple-800">{formatCurrency(totalCashInfusions)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Marketing Costs Detail */}
             <div className="bg-white rounded-lg shadow p-6">
