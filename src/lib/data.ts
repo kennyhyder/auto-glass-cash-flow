@@ -405,22 +405,25 @@ export const monthlyMarketingCosts: { [key: string]: number } = {
 
 // Calculate forecast based on jobs per week (jobs drive everything else)
 export function calculateForecast(
-  jobsPerWeek: number,
+  startingJobsPerWeek: number,
   weeks: number = 8,
   options: {
     avgJobRevenue?: number;
     marginPercent?: number;
     includeOverhead?: boolean; // Include fixed overhead in net profit calculation
+    weeklyGrowthPercent?: number; // Weekly growth rate for jobs (e.g., 10 for 10%)
   } = {}
 ) {
   const {
     avgJobRevenue = weeklyPerformanceStats.avgRevenuePerJob,
     marginPercent = weeklyPerformanceStats.marginPercent,
-    includeOverhead = true
+    includeOverhead = true,
+    weeklyGrowthPercent = 0
   } = options;
 
   const forecast = [];
   const weeklyOverhead = getWeeklyFixedOverhead();
+  const growthMultiplier = 1 + (weeklyGrowthPercent / 100);
 
   let cumulativeJobs = 0;
   let cumulativeRevenue = 0;
@@ -430,9 +433,12 @@ export function calculateForecast(
   let cumulativeNetProfit = 0;
 
   for (let i = 0; i < weeks; i++) {
+    // Calculate jobs for this week with growth
+    const weekJobs = Math.round(startingJobsPerWeek * Math.pow(growthMultiplier, i));
+
     // Calculate ad spend based on jobs
-    const weekAdSpend = calculateAdSpendFromJobs(jobsPerWeek);
-    const weekRevenue = jobsPerWeek * avgJobRevenue;
+    const weekAdSpend = calculateAdSpendFromJobs(weekJobs);
+    const weekRevenue = weekJobs * avgJobRevenue;
     const weekGrossMargin = weekRevenue * (marginPercent / 100);
     const weekOverhead = includeOverhead ? weeklyOverhead : 0;
     // Net Profit = Gross Margin - Ad Spend - Fixed Overhead
@@ -440,7 +446,7 @@ export function calculateForecast(
     const roas = calculateROAS(weekRevenue, weekAdSpend);
 
     // Update cumulative totals
-    cumulativeJobs += jobsPerWeek;
+    cumulativeJobs += weekJobs;
     cumulativeRevenue += weekRevenue;
     cumulativeGrossMargin += weekGrossMargin;
     cumulativeAdSpend += weekAdSpend;
@@ -449,14 +455,14 @@ export function calculateForecast(
 
     forecast.push({
       week: i + 1,
-      jobs: jobsPerWeek,
+      jobs: weekJobs,
       revenue: weekRevenue,
       grossMargin: weekGrossMargin,
       adSpend: weekAdSpend,
       overhead: weekOverhead,
       netProfit: weekNetProfit,
       roas: roas,
-      costPerJob: weekAdSpend / jobsPerWeek,
+      costPerJob: weekAdSpend / weekJobs,
       // Cumulative totals
       cumJobs: cumulativeJobs,
       cumRevenue: cumulativeRevenue,

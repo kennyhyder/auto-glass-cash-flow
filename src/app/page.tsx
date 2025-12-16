@@ -70,6 +70,7 @@ export default function Home() {
   const [forecastAvgJobRevenue, setForecastAvgJobRevenue] = useState(weeklyPerformanceStats.avgRevenuePerJob);
   const [forecastMarginPercent, setForecastMarginPercent] = useState(weeklyPerformanceStats.marginPercent);
   const [includeOverhead, setIncludeOverhead] = useState(false); // Default OFF to match Performance tab
+  const [weeklyGrowthPercent, setWeeklyGrowthPercent] = useState(10); // Default 10% weekly growth
 
   // Calculate expected ad spend from jobs
   const expectedAdSpend = useMemo(() => {
@@ -85,9 +86,10 @@ export default function Home() {
     return calculateForecast(forecastJobsPerWeek, forecastWeeks, {
       avgJobRevenue: forecastAvgJobRevenue,
       marginPercent: forecastMarginPercent,
-      includeOverhead: includeOverhead
+      includeOverhead: includeOverhead,
+      weeklyGrowthPercent: weeklyGrowthPercent
     });
-  }, [forecastJobsPerWeek, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, includeOverhead]);
+  }, [forecastJobsPerWeek, forecastWeeks, forecastAvgJobRevenue, forecastMarginPercent, includeOverhead, weeklyGrowthPercent]);
 
   // Calculate forecast totals (use last week's cumulative values)
   const forecastTotals = useMemo(() => {
@@ -486,14 +488,14 @@ export default function Home() {
             {/* Interactive Forecast Controls */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-2">Job-Driven Forecast</h2>
-              <p className="text-sm text-gray-500 mb-6">Set your target jobs per week - ad spend and other costs are calculated automatically</p>
+              <p className="text-sm text-gray-500 mb-6">Set starting jobs and weekly growth rate - jobs compound each week, ad spend scales accordingly</p>
 
-              {/* Primary Control: Jobs Per Week */}
+              {/* Primary Control: Starting Jobs Per Week */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-green-800 mb-2">
-                      Jobs Per Week: <span className="text-3xl font-bold text-green-600">{forecastJobsPerWeek}</span>
+                      Starting Jobs (Week 1): <span className="text-3xl font-bold text-green-600">{forecastJobsPerWeek}</span>
                     </label>
                     <input
                       type="range"
@@ -511,19 +513,40 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="text-center md:text-right bg-white rounded-lg p-4 shadow-sm">
-                    <p className="text-sm text-gray-500">Required Ad Spend</p>
-                    <p className="text-2xl font-bold text-red-600">{formatCurrency(expectedAdSpend)}/wk</p>
+                    <p className="text-sm text-gray-500">Week 1 Ad Spend</p>
+                    <p className="text-2xl font-bold text-red-600">{formatCurrency(expectedAdSpend)}</p>
                     <p className="text-xs text-gray-400">{formatCurrency(expectedAdSpend / forecastJobsPerWeek)}/job</p>
                   </div>
                 </div>
               </div>
 
               {/* Secondary Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
+                {/* Weekly Growth Rate */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Weekly Growth: <span className="text-[#1B4B82] font-bold">{weeklyGrowthPercent}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="20"
+                    step="1"
+                    value={weeklyGrowthPercent}
+                    onChange={(e) => setWeeklyGrowthPercent(Number(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1B4B82]"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>0%</span>
+                    <span>10%</span>
+                    <span>20%</span>
+                  </div>
+                </div>
+
                 {/* Avg Revenue Per Job */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Avg Revenue/Job: <span className="text-blue-600 font-bold">{formatCurrency(forecastAvgJobRevenue)}</span>
+                    Avg Revenue/Job: <span className="text-[#1B4B82] font-bold">{formatCurrency(forecastAvgJobRevenue)}</span>
                   </label>
                   <input
                     type="range"
@@ -532,7 +555,7 @@ export default function Home() {
                     step="10"
                     value={forecastAvgJobRevenue}
                     onChange={(e) => setForecastAvgJobRevenue(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1B4B82]"
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>$500</span>
@@ -544,7 +567,7 @@ export default function Home() {
                 {/* Margin Percent */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Margin %: <span className="text-blue-600 font-bold">{forecastMarginPercent.toFixed(1)}%</span>
+                    Margin %: <span className="text-[#1B4B82] font-bold">{forecastMarginPercent.toFixed(1)}%</span>
                   </label>
                   <input
                     type="range"
@@ -553,7 +576,7 @@ export default function Home() {
                     step="0.5"
                     value={forecastMarginPercent}
                     onChange={(e) => setForecastMarginPercent(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1B4B82]"
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>45%</span>
@@ -565,7 +588,7 @@ export default function Home() {
                 {/* Forecast Weeks */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">
-                    Forecast Period: <span className="text-blue-600 font-bold">{forecastWeeks} weeks</span>
+                    Forecast Period: <span className="text-[#1B4B82] font-bold">{forecastWeeks} weeks</span>
                   </label>
                   <input
                     type="range"
@@ -574,7 +597,7 @@ export default function Home() {
                     step="1"
                     value={forecastWeeks}
                     onChange={(e) => setForecastWeeks(Number(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#1B4B82]"
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>4 wks</span>
@@ -590,7 +613,7 @@ export default function Home() {
                       type="checkbox"
                       checked={includeOverhead}
                       onChange={(e) => setIncludeOverhead(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-[#1B4B82] border-gray-300 rounded focus:ring-[#6BA4D0]"
                     />
                     <span className="text-sm font-medium text-gray-700">Include Fixed Overhead</span>
                   </label>
@@ -607,29 +630,32 @@ export default function Home() {
                   onClick={() => {
                     setForecastJobsPerWeek(50);
                     setForecastMarginPercent(55);
+                    setWeeklyGrowthPercent(5);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700 hover:bg-red-200"
                 >
-                  Conservative (50 jobs/wk)
+                  Conservative (50 start, 5% growth)
                 </button>
                 <button
                   onClick={() => {
                     setForecastJobsPerWeek(73);
                     setForecastAvgJobRevenue(691);
                     setForecastMarginPercent(57.8);
+                    setWeeklyGrowthPercent(0);
                   }}
-                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-[#6BA4D0]/30 text-[#1B4B82] hover:bg-[#6BA4D0]/50"
                 >
-                  Actual Avg (73 jobs/wk)
+                  Flat (73 jobs/wk, no growth)
                 </button>
                 <button
                   onClick={() => {
-                    setForecastJobsPerWeek(90);
-                    setForecastMarginPercent(55);
+                    setForecastJobsPerWeek(60);
+                    setForecastMarginPercent(57.8);
+                    setWeeklyGrowthPercent(10);
                   }}
                   className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700 hover:bg-green-200"
                 >
-                  Growth (90 jobs/wk)
+                  Growth (60 start, 10% weekly)
                 </button>
               </div>
             </div>
