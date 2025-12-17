@@ -130,43 +130,38 @@ export default function Home() {
     localStorage.setItem('cashInfusionSelections', JSON.stringify(selections));
   };
 
-  // Export cash infusion selections to JSON file
+  // Export cash infusion selections to CSV file
   const exportCashInfusions = () => {
-    const selections: Record<string, boolean> = {};
-    const selectedTransactions: { id: string; date: string; description: string; amount: number }[] = [];
+    const selectedTransactions = transactions.filter(t => t.isCashInfusion);
 
-    transactions.forEach(t => {
-      if (t.isCashInfusion) {
-        selections[t.id] = true;
-        selectedTransactions.push({
-          id: t.id,
-          date: t.date,
-          description: t.description,
-          amount: t.amount
-        });
-      }
-    });
+    // CSV header
+    const headers = ['ID', 'Date', 'Description', 'Amount', 'Source', 'Category'];
+    const rows = selectedTransactions.map(t => [
+      t.id,
+      t.date,
+      `"${t.description.replace(/"/g, '""')}"`, // Escape quotes in description
+      Math.abs(t.amount).toFixed(2),
+      t.source,
+      t.category
+    ]);
 
-    const exportData = {
-      exportDate: new Date().toISOString(),
-      totalInfusions: selectedTransactions.length,
-      totalAmount: selectedTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0),
-      selections,
-      details: selectedTransactions
-    };
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cash-infusions-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `cash-infusions-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  // Import cash infusion selections from JSON file
+  // Import cash infusion selections from CSV file
   const importCashInfusions = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -174,27 +169,38 @@ export default function Home() {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = JSON.parse(e.target?.result as string);
-        const selections = data.selections as Record<string, boolean>;
+        const csvText = e.target?.result as string;
+        const lines = csvText.trim().split('\n');
 
-        if (!selections || typeof selections !== 'object') {
-          alert('Invalid file format. Please select a valid cash infusions export file.');
+        // Skip header row, extract IDs from first column
+        const importedIds = new Set<string>();
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          // Handle CSV parsing - ID is first column
+          const firstComma = line.indexOf(',');
+          if (firstComma > 0) {
+            const id = line.substring(0, firstComma).trim();
+            if (id) importedIds.add(id);
+          }
+        }
+
+        if (importedIds.size === 0) {
+          alert('No valid transaction IDs found in the CSV file.');
           return;
         }
 
         setTransactions(prev => {
           const updated = prev.map(t => ({
             ...t,
-            isCashInfusion: selections[t.id] ?? t.isCashInfusion
+            isCashInfusion: importedIds.has(t.id) ? true : t.isCashInfusion
           }));
           saveCashInfusionSelections(updated);
           return updated;
         });
 
-        const count = Object.keys(selections).length;
-        alert(`Successfully imported ${count} cash infusion selection${count !== 1 ? 's' : ''}.`);
+        alert(`Successfully imported ${importedIds.size} cash infusion selection${importedIds.size !== 1 ? 's' : ''}.`);
       } catch {
-        alert('Error reading file. Please select a valid JSON file.');
+        alert('Error reading file. Please select a valid CSV file.');
       }
     };
     reader.readAsText(file);
@@ -1220,7 +1226,7 @@ export default function Home() {
                     Import Selections
                     <input
                       type="file"
-                      accept=".json"
+                      accept=".csv"
                       onChange={importCashInfusions}
                       className="hidden"
                     />
