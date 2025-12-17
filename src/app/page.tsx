@@ -130,6 +130,79 @@ export default function Home() {
     localStorage.setItem('cashInfusionSelections', JSON.stringify(selections));
   };
 
+  // Export cash infusion selections to JSON file
+  const exportCashInfusions = () => {
+    const selections: Record<string, boolean> = {};
+    const selectedTransactions: { id: string; date: string; description: string; amount: number }[] = [];
+
+    transactions.forEach(t => {
+      if (t.isCashInfusion) {
+        selections[t.id] = true;
+        selectedTransactions.push({
+          id: t.id,
+          date: t.date,
+          description: t.description,
+          amount: t.amount
+        });
+      }
+    });
+
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      totalInfusions: selectedTransactions.length,
+      totalAmount: selectedTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0),
+      selections,
+      details: selectedTransactions
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cash-infusions-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Import cash infusion selections from JSON file
+  const importCashInfusions = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        const selections = data.selections as Record<string, boolean>;
+
+        if (!selections || typeof selections !== 'object') {
+          alert('Invalid file format. Please select a valid cash infusions export file.');
+          return;
+        }
+
+        setTransactions(prev => {
+          const updated = prev.map(t => ({
+            ...t,
+            isCashInfusion: selections[t.id] ?? t.isCashInfusion
+          }));
+          saveCashInfusionSelections(updated);
+          return updated;
+        });
+
+        const count = Object.keys(selections).length;
+        alert(`Successfully imported ${count} cash infusion selection${count !== 1 ? 's' : ''}.`);
+      } catch {
+        alert('Error reading file. Please select a valid JSON file.');
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+  };
+
   // Toggle cash infusion status
   const toggleCashInfusion = (id: string) => {
     setTransactions(prev => {
@@ -1127,12 +1200,33 @@ export default function Home() {
 
             {/* Instructions */}
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-purple-800 mb-1">Mark Cash Infusion Payments</h3>
-              <p className="text-sm text-purple-700">
-                Use the checkboxes below to mark transactions that represent personal cash infusions back into the company.
-                Look for Zelle payments to SEE-N-CLEAR AUTO GLASS LLC or similar company payments.
-                Your selections are automatically saved.
-              </p>
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-purple-800 mb-1">Mark Cash Infusion Payments</h3>
+                  <p className="text-sm text-purple-700">
+                    Use the checkboxes below to mark transactions that represent personal cash infusions back into the company.
+                    Look for Zelle payments to SEE-N-CLEAR AUTO GLASS LLC or similar company payments.
+                    Your selections are automatically saved to this browser.
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={exportCashInfusions}
+                    className="px-3 py-2 text-sm font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                  >
+                    Export Selections
+                  </button>
+                  <label className="px-3 py-2 text-sm font-medium rounded-lg bg-white text-purple-700 border border-purple-300 hover:bg-purple-100 transition-colors cursor-pointer">
+                    Import Selections
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={importCashInfusions}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Transactions Table */}
